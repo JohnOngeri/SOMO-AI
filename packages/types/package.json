@@ -1,0 +1,20 @@
+{
+  "name": "@somo/types",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "The SOMO API contract: zod schemas + inferred TypeScript types shared by all frontends and backends",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@somo/config": "workspace:*"
+  }
+}

@@ -2,6 +2,7 @@
   "name": "somo",
   "private": true,
   "version": "0.0.1",
+  "type": "module",
   "description": "SOMO — offline-first AI teaching coach for low-connectivity markets",
   "packageManager": "pnpm@11.9.0",
   "engines": {
@@ -11,14 +12,20 @@
     "prepare": "husky",
     "dev": "pnpm -r --parallel --if-present run dev",
     "build": "pnpm -r --if-present run build",
-    "lint": "prettier --check . && pnpm -r --if-present run lint",
+    "lint": "prettier --check . && eslint .",
     "format": "prettier --write .",
     "typecheck": "pnpm -r --if-present run typecheck",
     "test": "pnpm -r --if-present run test",
     "e2e": "pnpm -r --if-present run e2e"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.6.0",
+    "eslint-config-prettier": "^10.1.8",
     "husky": "9.1.7",
-    "prettier": "3.6.2"
+    "prettier": "3.6.2",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.62.1",
+    "vitest": "^4.1.9"
   }
 }
