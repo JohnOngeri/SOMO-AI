@@ -42,3 +42,7 @@ test-results/
 
 # design/UX reference prototype (kept locally, not part of the product source)
 project/
+
+# embedded test postgres
+.pgdata-test/
+backend/api/src/generated/

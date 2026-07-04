@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ── Identity ──────────────────────────────────────────────────────────
+// All ids are client-or-server-generated ULIDs stored as text.
+
+model User {
+  id          String   @id
+  phone       String   @unique
+  displayName String?
+  locale      String   @default("en")
+  role        String   @default("teacher") // teacher | creator | org_admin | somo_admin
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  devices       Device[]
+  refreshTokens RefreshToken[]
+  dnaProfiles   ClassDnaProfile[]
+  reflections   ReflectionEntry[]
+  synthesisCards SynthesisCard[]
+  settings      UserSettings?
+}
+
+model UserSettings {
+  userId              String  @id
+  locale              String  @default("en")
+  connectivityCeiling String  @default("wifi")
+  textScale           Float   @default(1)
+  highContrast        Boolean @default(false)
+  readAloud           Boolean @default(false)
+  sound               Boolean @default(true)
+  haptics             Boolean @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model OtpChallenge {
+  id         String    @id
+  phone      String
+  codeHash   String
+  locale     String    @default("en")
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, createdAt])
+}
+
+model Device {
+  id         String   @id
+  userId     String
+  name       String?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+
+  @@index([userId])
+}
+
+model RefreshToken {
+  id        String    @id
+  tokenHash String    @unique
+  userId    String
+  deviceId  String
+  expiresAt DateTime
+  rotatedAt DateTime?
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([userId, deviceId])
+}
+
+// ── Class DNA ─────────────────────────────────────────────────────────
+
+model ClassDnaProfile {
+  id           String   @id
+  userId       String
+  className    String
+  learnerCount Int?
+  summary      String?
+  traits       String[] @default([])
+  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now())
+
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  responses DnaResponse[]
+
+  @@index([userId])
+}
+
+model DnaResponse {
+  id         String   @id
+  profileId  String
+  promptId   String
+  transcript String
+  audioRef   String?
+  capturedAt DateTime
+
+  profile ClassDnaProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, promptId])
+}
+
+// ── 3-Minute Mirror ───────────────────────────────────────────────────
+
+model ReflectionEntry {
+  id          String   @id
+  userId      String
+  date        String // teacher-local YYYY-MM-DD
+  slot        Int // 1 | 2 | 3
+  mode        String // voice | text | sms
+  transcript  String
+  durationSec Int?
+  capturedAt  DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date, slot])
+  @@index([userId, date])
+}
+
+model SynthesisCard {
+  id               String   @id
+  userId           String
+  date             String
+  insights         String[]
+  encouragement    String
+  focusForTomorrow String
+  createdAt        DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}

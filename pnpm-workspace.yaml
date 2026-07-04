@@ -2,5 +2,13 @@ packages:
   - frontend/*
   - backend/*
   - packages/*
+# slow networks: give big tarballs (postgres binaries, expo) time to land
+fetchTimeout: 1800000
+fetchRetries: 5
 allowBuilds:
   esbuild: true
+  prisma: true
+  '@prisma/client': true
+  '@prisma/engines': true
+  embedded-postgres: true
+  '@embedded-postgres/darwin-arm64': true
