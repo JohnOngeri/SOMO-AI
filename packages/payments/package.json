@@ -1,0 +1,21 @@
+{
+  "name": "@somo/payments",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "PaymentProvider interface + adapters. The sandbox adapter is fully functional so every money test runs without real keys.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@somo/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@somo/config": "workspace:*",
+    "@types/node": "^26.1.0"
+  }
+}

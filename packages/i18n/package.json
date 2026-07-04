@@ -1,0 +1,17 @@
+{
+  "name": "@somo/i18n",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "SOMO translations (EN / FR / Hausa / Swahili) with a tiny typed t() helper",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@somo/config": "workspace:*"
+  }
+}
