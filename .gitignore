@@ -1,0 +1,44 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+build/
+out/
+.next/
+.expo/
+.expo-shared/
+*.tsbuildinfo
+coverage/
+storybook-static/
+
+# env & secrets — never commit real keys
+.env
+.env.*
+!.env.example
+
+# databases / local volumes
+*.sqlite
+*.sqlite3
+infra/volumes/
+
+# logs & OS noise
+*.log
+npm-debug.log*
+pnpm-debug.log*
+.DS_Store
+Thumbs.db
+
+# editors
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# test artifacts
+playwright-report/
+test-results/
+
+# design/UX reference prototype (kept locally, not part of the product source)
+project/

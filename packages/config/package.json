@@ -1,0 +1,10 @@
+{
+  "name": "@somo/config",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Shared tsconfig, eslint, prettier and tailwind presets for the SOMO monorepo",
+  "files": [
+    "tsconfig.base.json",
+    "eslint.base.js"
+  ]
+}

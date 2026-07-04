@@ -1,0 +1,8 @@
+node_modules/
+dist/
+build/
+coverage/
+.expo/
+project/
+pnpm-lock.yaml
+*.hbs

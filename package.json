@@ -1,0 +1,24 @@
+{
+  "name": "somo",
+  "private": true,
+  "version": "0.0.1",
+  "description": "SOMO — offline-first AI teaching coach for low-connectivity markets",
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "prepare": "husky",
+    "dev": "pnpm -r --parallel --if-present run dev",
+    "build": "pnpm -r --if-present run build",
+    "lint": "prettier --check . && pnpm -r --if-present run lint",
+    "format": "prettier --write .",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "test": "pnpm -r --if-present run test",
+    "e2e": "pnpm -r --if-present run e2e"
+  },
+  "devDependencies": {
+    "husky": "9.1.7",
+    "prettier": "3.6.2"
+  }
+}
