@@ -6,3 +6,4 @@ coverage/
 project/
 pnpm-lock.yaml
 *.hbs
+**/src/generated/

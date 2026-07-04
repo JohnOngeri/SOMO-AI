@@ -1,0 +1,35 @@
+{
+  "name": "@somo/api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "SOMO main API: phone-OTP auth, Class DNA, reflections, today — Fastify + tRPC + Prisma",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "generate": "prisma generate",
+    "db:push": "prisma db push",
+    "seed": "tsx prisma/seed.ts",
+    "typecheck": "prisma generate && tsc --noEmit",
+    "test": "prisma generate && vitest run"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "@somo/i18n": "workspace:*",
+    "@somo/types": "workspace:*",
+    "@trpc/server": "^11.18.0",
+    "fastify": "^5.9.0",
+    "jose": "^6.2.3",
+    "pg": "^8.22.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@somo/config": "workspace:*",
+    "@trpc/client": "^11.18.0",
+    "@types/node": "^26.1.0",
+    "@types/pg": "^8.20.0",
+    "embedded-postgres": "18.4.0-beta.17",
+    "prisma": "^7.8.0",
+    "tsx": "^4.23.0"
+  }
+}

@@ -12,6 +12,7 @@ export default tseslint.config(
       '**/storybook-static/**',
       '**/.expo/**',
       'project/**',
+      '**/src/generated/**',
     ],
   },
   eslint.configs.recommended,
