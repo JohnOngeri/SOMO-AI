@@ -6,6 +6,8 @@ import { createDb, type PrismaClient } from './db'
 import { OtpService } from './auth/otp'
 import { TokenService } from './auth/tokens'
 import { BillingService } from './billing/service'
+import { AnthropicAiProvider, MockAiProvider, type AiProvider } from './coach/provider'
+import { CoachService } from './coach/service'
 import { EntitlementService } from './entitlements/service'
 import { MarketplaceService } from './marketplace/service'
 import { type Env, loadEnv } from './env'
@@ -22,6 +24,7 @@ export interface BuildOptions {
   sms?: SmsSender
   store?: ObjectStore
   payments?: PaymentProvider
+  ai?: AiProvider
   /** pass prebuilt services (tests inspect them directly) */
   services?: Services
 }
@@ -62,6 +65,12 @@ export function buildServices(opts: BuildOptions = {}): Services {
   const payments = opts.payments ?? new SandboxPaymentProvider()
   const metering = new MeteringService(db)
   const marketplace = new MarketplaceService(db, payments)
+  const entitlements = new EntitlementService(db, entitlementKeys)
+  const ai =
+    opts.ai ??
+    (env.AI_PROVIDER === 'anthropic' && env.ANTHROPIC_API_KEY
+      ? new AnthropicAiProvider(env.ANTHROPIC_API_KEY)
+      : new MockAiProvider())
   return {
     db,
     env,
@@ -72,9 +81,11 @@ export function buildServices(opts: BuildOptions = {}): Services {
     otp: new OtpService(db, sms, env),
     tokens: new TokenService(db, env),
     packs: new PackService(db, store, packKeys),
-    entitlements: new EntitlementService(db, entitlementKeys),
+    entitlements,
     metering,
     marketplace,
+    ai,
+    coach: new CoachService(db, ai, entitlements, metering, env),
     billing: new BillingService(db, payments, metering, {
       marketplaceChargeSucceeded: (ref) => marketplace.completeSaleForCharge(ref),
     }),

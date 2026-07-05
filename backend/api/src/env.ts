@@ -16,6 +16,12 @@ const envSchema = z.object({
   ENTITLEMENT_SIGNING_PRIVATE_KEY: z.string().optional(),
   ENTITLEMENT_SIGNING_PUBLIC_KEY: z.string().optional(),
   PACKS_STORAGE_DIR: z.string().default('./storage'),
+  /** 'anthropic' needs ANTHROPIC_API_KEY; anything else falls back to the mock */
+  AI_PROVIDER: z.enum(['anthropic', 'mock']).default('mock'),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  AI_MODEL_FAST: z.string().default('claude-haiku-4-5'),
+  AI_MODEL_QUALITY: z.string().default('claude-sonnet-5'),
+  AI_QUALITY_THRESHOLD_CHARS: z.coerce.number().int().positive().default(280),
 })
 
 export type Env = z.infer<typeof envSchema>

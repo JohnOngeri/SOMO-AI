@@ -344,3 +344,24 @@ model Payout {
 
   @@index([creatorId])
 }
+
+// ── AI coach ──────────────────────────────────────────────────────────
+
+model CoachReply {
+  id            String   @id
+  askId         String   @unique // client ULID -> idempotent
+  userId        String
+  dnaProfileId  String?
+  mode          String // voice | text | sms | ussd
+  question      String
+  normalizedHash String
+  answer        String
+  costTier      String // cached | small | quality
+  model         String
+  inputTokens   Int      @default(0)
+  outputTokens  Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  @@index([normalizedHash, dnaProfileId])
+  @@index([userId, createdAt])
+}

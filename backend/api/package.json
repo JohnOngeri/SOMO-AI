@@ -13,6 +13,7 @@
     "test": "prisma generate && vitest run"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@somo/i18n": "workspace:*",
