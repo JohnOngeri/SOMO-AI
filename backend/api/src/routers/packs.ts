@@ -53,9 +53,9 @@ export const packsRouter = router({
   }),
 
   /**
-   * Entitlement-gated download. Paid packs need Plus/org (all_standard grant);
-   * the free tier's active-pack limit is enforced here and every block is
-   * metered as a paywall_hit — that's the conversion funnel's raw data.
+   * Seat-gated download. Pack distribution is metered infrastructure — no
+   * seat, no bytes (grant-owned packs excepted: they are property). Seated
+   * teachers get every standard pack under the institution's license.
    */
   download: authedProcedure.input(z.object({ id: ulid })).mutation(async ({ ctx, input }) => {
     const row = await ctx.db.pack.findUnique({ where: { id: input.id } })
@@ -63,25 +63,18 @@ export const packsRouter = router({
 
     const claims = await ctx.entitlements.claimsFor(ctx.auth.sub)
     const owned = await ctx.marketplace.hasGrant(ctx.auth.sub, row.id)
-    if (row.priceAmountMinor > 0 && claims.packs !== 'all_standard' && !owned) {
-      throw new TRPCError({
-        code: 'PAYMENT_REQUIRED',
-        message: 'pack requires purchase or SOMO Plus',
-      })
-    }
 
-    // purchased packs are the teacher's property — never blocked by the free-tier limit
-    if (claims.limits.maxActivePacks !== null && !owned) {
-      const installed = await ctx.metering.distinctInstalledPacks(ctx.auth.sub)
-      if (!installed.includes(row.id) && installed.length >= claims.limits.maxActivePacks) {
-        await ctx.metering.record({
-          id: newUlid(),
-          userId: ctx.auth.sub,
-          type: 'paywall_hit',
-          meta: { reason: 'pack_limit', packId: row.id },
-        })
-        throw new TRPCError({ code: 'FORBIDDEN', message: 'pack_limit_reached' })
-      }
+    if (claims.plan === 'none' && !owned) {
+      await ctx.metering.record({
+        id: newUlid(),
+        userId: ctx.auth.sub,
+        type: 'quota_block',
+        meta: { blocked: 'pack_download', packId: row.id },
+      })
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'seat_required' })
+    }
+    if (row.priceAmountMinor > 0 && claims.packs !== 'all_standard' && !owned) {
+      throw new TRPCError({ code: 'PAYMENT_REQUIRED', message: 'pack requires a license grant' })
     }
 
     await ctx.metering.record({

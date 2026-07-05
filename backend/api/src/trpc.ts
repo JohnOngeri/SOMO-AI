@@ -8,6 +8,8 @@ import type { BillingService } from './billing/service'
 import type { AiProvider } from './coach/provider'
 import type { CoachService } from './coach/service'
 import type { EntitlementService } from './entitlements/service'
+import type { GatewayService } from './gateway/service'
+import type { SmsGate } from './gateway/smsgate'
 import type { MarketplaceService } from './marketplace/service'
 import type { MeteringService } from './metering/service'
 import type { PackService, SigningKeys } from './packs/service'
@@ -32,6 +34,8 @@ export interface Services {
   ai: AiProvider
   coach: CoachService
   seats: SeatService
+  smsGate: SmsGate
+  gateway: GatewayService
 }
 
 export interface Context extends Services {

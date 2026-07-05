@@ -1,28 +1,29 @@
 import type { QuotaState, UsageEventType } from '@somo/types'
 import type { PrismaClient } from '../db'
+import { newUlid } from '../ids'
 
-/** Monday 00:00 UTC of the week containing `at` — the ask-quota window. */
-export function weekStart(at: Date): Date {
-  const d = new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate()))
-  const day = d.getUTCDay() // 0 = Sunday
-  d.setUTCDate(d.getUTCDate() - ((day + 6) % 7))
-  return d
+/** Quota windows are calendar months (UTC) — matching per-seat monthly quotas. */
+export function monthStart(at: Date): Date {
+  return new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), 1))
 }
 
-export function weekEnd(at: Date): Date {
-  const start = weekStart(at)
-  return new Date(start.getTime() + 7 * 86_400_000)
+export function monthEnd(at: Date): Date {
+  return new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth() + 1, 1))
 }
 
 export class QuotaExceededError extends Error {
-  constructor(public quota: QuotaState) {
+  constructor(
+    public quota: QuotaState,
+    public kind: 'ai_call' | 'sms_out' = 'ai_call',
+  ) {
     super('quota_exceeded')
   }
 }
 
 /**
  * Append-only usage facts. Events are idempotent by client ULID so offline
- * queues replay safely; counters are derived, never stored.
+ * queues replay safely; counters are derived, never stored. ai_call and
+ * sms_out events ARE the cost ledger — every paid action leaves a row.
  */
 export class MeteringService {
   constructor(private db: PrismaClient) {}
@@ -49,47 +50,91 @@ export class MeteringService {
     return true
   }
 
-  async asksThisWeek(userId: string, at: Date = new Date()): Promise<number> {
+  async countThisMonth(
+    userId: string,
+    type: 'ai_call' | 'sms_out' | 'ussd_session',
+    at: Date = new Date(),
+  ): Promise<number> {
     return this.db.usageEvent.count({
-      where: { userId, type: 'ask_coach', at: { gte: weekStart(at), lt: weekEnd(at) } },
+      where: { userId, type, at: { gte: monthStart(at), lt: monthEnd(at) } },
     })
   }
 
-  async askQuota(userId: string, limit: number | null, at: Date = new Date()): Promise<QuotaState> {
-    const used = await this.asksThisWeek(userId, at)
-    return { used, limit, resetsAt: weekEnd(at).toISOString() }
+  async quotaState(
+    userId: string,
+    type: 'ai_call' | 'sms_out',
+    limit: number | null,
+    at: Date = new Date(),
+  ): Promise<QuotaState> {
+    const used = await this.countThisMonth(userId, type, at)
+    return { used, limit, resetsAt: monthEnd(at).toISOString() }
   }
 
   /**
-   * The freemium gate: atomically record an ask if quota allows.
+   * THE cost gate for LLM calls. Atomically consumes one monthly AI credit or
+   * throws — callers must not touch a model provider unless this returns.
    * Replays of an already-recorded id never double-count or re-block.
    */
-  async recordAskOrThrow(input: {
+  async recordAiCallOrThrow(input: {
     id: string
     userId: string
     limit: number | null
     meta?: Record<string, string | number | boolean>
   }): Promise<QuotaState> {
     const existing = await this.db.usageEvent.findUnique({ where: { id: input.id } })
-    if (!existing) {
-      const quota = await this.askQuota(input.userId, input.limit)
+
+    // Only a prior ai_call means "already paid". A prior quota_block under this
+    // id must NOT open the gate on retry — re-evaluate with a fresh event id
+    // (the retry may legitimately pass after the monthly window reset).
+    const alreadyPaid = existing?.type === 'ai_call'
+    if (!alreadyPaid) {
+      const eventId = existing ? newUlid() : input.id
+      const quota = await this.quotaState(input.userId, 'ai_call', input.limit)
       if (quota.limit !== null && quota.used >= quota.limit) {
         await this.record({
-          id: input.id,
+          id: eventId,
           userId: input.userId,
-          type: 'paywall_hit',
-          meta: { ...(input.meta ?? {}), reason: 'ask_limit' },
+          type: 'quota_block',
+          meta: { ...(input.meta ?? {}), blocked: 'ai_call' },
         })
-        throw new QuotaExceededError(quota)
+        throw new QuotaExceededError(quota, 'ai_call')
       }
       await this.record({
-        id: input.id,
+        id: eventId,
         userId: input.userId,
-        type: 'ask_coach',
+        type: 'ai_call',
         ...(input.meta ? { meta: input.meta } : {}),
       })
     }
-    return this.askQuota(input.userId, input.limit)
+    return this.quotaState(input.userId, 'ai_call', input.limit)
+  }
+
+  /**
+   * THE cost gate for outbound SMS (excluding auth OTPs, which are gated by
+   * the resend window instead). Consumes one monthly SMS credit or throws.
+   */
+  async recordSmsOrThrow(input: {
+    userId: string
+    limit: number | null
+    meta?: Record<string, string | number | boolean>
+  }): Promise<QuotaState> {
+    const quota = await this.quotaState(input.userId, 'sms_out', input.limit)
+    if (quota.limit !== null && quota.used >= quota.limit) {
+      await this.record({
+        id: newUlid(),
+        userId: input.userId,
+        type: 'quota_block',
+        meta: { ...(input.meta ?? {}), blocked: 'sms_out' },
+      })
+      throw new QuotaExceededError(quota, 'sms_out')
+    }
+    await this.record({
+      id: newUlid(),
+      userId: input.userId,
+      type: 'sms_out',
+      ...(input.meta ? { meta: input.meta } : {}),
+    })
+    return this.quotaState(input.userId, 'sms_out', input.limit)
   }
 
   /** Distinct packs this user has installed (uninstalls arrive with sync, phase 9). */

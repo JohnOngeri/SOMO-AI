@@ -1,17 +1,19 @@
 import { z } from 'zod'
 import { isoDateTime, ulid } from './common'
 
+/**
+ * ai_call / sms_out / quota_block / seat_redeemed are SERVER-written only —
+ * they are the cost ledger and the audit trail of the fail-closed gates.
+ */
 export const usageEventType = z.enum([
-  'ask_coach',
+  'ai_call',
+  'sms_out',
+  'ussd_session',
   'pack_install',
   'reflection',
   'active_day',
-  'ussd_session',
-  'paywall_hit',
-  'trial_start',
-  'upgrade',
-  'referral_share',
-  'referral_redeem',
+  'quota_block',
+  'seat_redeemed',
 ])
 export type UsageEventType = z.infer<typeof usageEventType>
 

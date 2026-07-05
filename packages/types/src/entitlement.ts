@@ -1,31 +1,40 @@
 import { z } from 'zod'
 import { ulid } from './common'
 
-export const planId = z.enum(['free', 'plus', 'org_seat'])
+export const planId = z.enum(['none', 'org_seat'])
 export type PlanId = z.infer<typeof planId>
 
-/** Per-plan limits. null = unlimited. */
+/** Per-plan monthly limits. null = unlimited, 0 = fail closed. */
 export const planLimits = z.object({
-  asksPerWeek: z.number().int().nonnegative().nullable(),
+  aiCallsPerMonth: z.number().int().nonnegative().nullable(),
+  smsPerMonth: z.number().int().nonnegative().nullable(),
   maxActivePacks: z.number().int().nonnegative().nullable(),
 })
 export type PlanLimits = z.infer<typeof planLimits>
 
-export const freeLimits: z.infer<typeof planLimits> = {
-  asksPerWeek: 5,
-  maxActivePacks: 1,
+/**
+ * FAIL CLOSED: a user without an authorized seat gets zero of everything
+ * metered. This is the pivot's core invariant — no seat, no paid calls.
+ */
+export const seatlessLimits: z.infer<typeof planLimits> = {
+  aiCallsPerMonth: 0,
+  smsPerMonth: 0,
+  maxActivePacks: 0,
 }
 
 /**
- * Claims inside the ed25519-signed offline entitlement token.
- * The device verifies the signature locally and enforces limits with NO connectivity.
- * Times are unix seconds (compact for SMS-transportable tokens).
+ * Claims inside the ed25519-signed offline entitlement token (the "seat
+ * token"). The device verifies the signature locally and enforces limits with
+ * NO connectivity. Times are unix seconds (compact for SMS-transportable
+ * tokens). exp never outlives the license term end.
  */
 export const entitlementClaims = z.object({
   sub: ulid, // userId
   plan: planId,
+  seatId: ulid.optional(),
+  licenseId: ulid.optional(),
   limits: planLimits,
-  /** pack grants: explicit ids, or every standard pack (Plus) */
+  /** pack grants: explicit ids, or every standard pack (seated teachers) */
   packs: z.union([z.literal('all_standard'), z.array(ulid).max(500)]),
   iat: z.number().int().positive(),
   exp: z.number().int().positive(),

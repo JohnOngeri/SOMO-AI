@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { sha256Hex, verifyPayload } from '@somo/packsign'
-import { resetDb, signUp, startTestApp, type TestApp } from './helpers'
+import { resetDb, signUp, signUpSeated, startTestApp, type TestApp } from './helpers'
 
 let t: TestApp
 
@@ -76,12 +76,12 @@ describe('pack publishing', () => {
   })
 })
 
-describe('pack browsing + download', () => {
-  it('teachers list live packs and download free ones with hash-checked bytes', async () => {
+describe('pack browsing + download (seat-gated)', () => {
+  it('seated teachers list live packs and download with hash-checked bytes', async () => {
     const creator = await creatorSession()
     await t.client(creator.accessToken).packs.publish.mutate(publishInput())
 
-    const teacher = await signUp(t, '+254799000003')
+    const teacher = await signUpSeated(t, '+254799000003')
     const api = t.client(teacher.accessToken)
 
     const list = await api.packs.list.query()
@@ -104,25 +104,41 @@ describe('pack browsing + download', () => {
     expect(res.status).toBe(401)
   })
 
-  it('paid packs 402 until purchased (entitlements arrive in phase 4)', async () => {
+  it('seatless teachers get nothing — free or paid (fail closed)', async () => {
+    const creator = await creatorSession()
+    const freePub = await t.client(creator.accessToken).packs.publish.mutate(publishInput())
+    const paidPub = await t
+      .client(creator.accessToken)
+      .packs.publish.mutate(publishInput({ slug: 'premium-pack', priceAmountMinor: 26000 }))
+
+    const teacher = await signUp(t, '+254799000004')
+    for (const pub of [freePub, paidPub]) {
+      await expect(
+        t.client(teacher.accessToken).packs.download.mutate({ id: pub.manifest.id }),
+      ).rejects.toThrow(/seat_required/)
+      const res = await fetch(`${t.url}/packs/${pub.manifest.id}/archive`, {
+        headers: { authorization: `Bearer ${teacher.accessToken}` },
+      })
+      expect(res.status).toBe(403)
+    }
+  })
+
+  it('seated teachers get paid packs too — the institution licensed them', async () => {
     const creator = await creatorSession()
     const pub = await t
       .client(creator.accessToken)
       .packs.publish.mutate(publishInput({ slug: 'premium-pack', priceAmountMinor: 26000 }))
 
-    const teacher = await signUp(t, '+254799000004')
-    await expect(
-      t.client(teacher.accessToken).packs.download.mutate({ id: pub.manifest.id }),
-    ).rejects.toThrow(/PAYMENT_REQUIRED|purchase/)
-
-    const res = await fetch(`${t.url}/packs/${pub.manifest.id}/archive`, {
+    const teacher = await signUpSeated(t, '+254799000005')
+    const dl = await t.client(teacher.accessToken).packs.download.mutate({ id: pub.manifest.id })
+    const res = await fetch(`${t.url}${dl.archivePath}`, {
       headers: { authorization: `Bearer ${teacher.accessToken}` },
     })
-    expect(res.status).toBe(402)
+    expect(res.status).toBe(200)
   })
 
   it('unknown pack ids 404', async () => {
-    const teacher = await signUp(t, '+254799000005')
+    const teacher = await signUpSeated(t, '+254799000006')
     await expect(
       t.client(teacher.accessToken).packs.download.mutate({ id: '01HZY3V7Q4J8K2M5N9P1R3T6W8' }),
     ).rejects.toThrow(/NOT_FOUND/)

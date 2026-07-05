@@ -20,29 +20,6 @@ function rethrow(e: unknown): never {
 }
 
 export const marketplaceRouter = router({
-  buy: authedProcedure
-    .input(
-      z.object({
-        idempotencyKey: ulid,
-        packId: ulid,
-        channel: z.enum(['mobile_money', 'card', 'airtime']),
-        msisdn: z.string().optional(),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      try {
-        return await ctx.marketplace.buyPack({
-          buyerId: ctx.auth.sub,
-          packId: input.packId,
-          channel: input.channel,
-          idempotencyKey: input.idempotencyKey,
-          ...(input.msisdn ? { msisdn: input.msisdn } : {}),
-        })
-      } catch (e) {
-        rethrow(e)
-      }
-    }),
-
   /** Creator earnings dashboard data. */
   earnings: authedProcedure.query(async ({ ctx }) => {
     if (ctx.auth.role !== 'creator' && ctx.auth.role !== 'somo_admin') {

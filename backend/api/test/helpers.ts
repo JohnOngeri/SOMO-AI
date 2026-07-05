@@ -65,3 +65,51 @@ export async function signUp(t: TestApp, phone: string) {
   const session = await anon.auth.verifyOtp.mutate({ challengeId, code, deviceId })
   return { ...session, deviceId }
 }
+
+/**
+ * Give a user an ACTIVE seat on a live license (bypassing the PIN flow).
+ * The default license runs for 80 more days with generous quotas.
+ */
+export async function seatUser(
+  t: TestApp,
+  userId: string,
+  opts: {
+    aiCalls?: number
+    sms?: number
+    startDaysAgo?: number
+    endInDays?: number
+    institutionName?: string
+  } = {},
+) {
+  const DAY = 86_400_000
+  const inst = await t.services.seats.createInstitution({
+    name: opts.institutionName ?? 'Test Institution',
+    type: 'NGO',
+    country: 'KE',
+  })
+  const license = await t.services.seats.createLicense({
+    institutionId: inst.id,
+    term: '2026-T2',
+    startDate: new Date(Date.now() - (opts.startDaysAgo ?? 10) * DAY),
+    endDate: new Date(Date.now() + (opts.endInDays ?? 80) * DAY),
+    seatsPurchased: 10,
+    pricePerSeatMinor: 1200,
+    currency: 'USD',
+    monthlyAiCallsPerSeat: opts.aiCalls ?? 200,
+    monthlySmsPerSeat: opts.sms ?? 100,
+  })
+  const [issued] = await t.services.seats.generateSeats(license.id, 1)
+  const seat = await t.services.seats.redeemPin(issued!.pin, userId)
+  return { inst, license, seat, pin: issued!.pin }
+}
+
+/** signUp + seat in one step — the common "authorized teacher" fixture. */
+export async function signUpSeated(
+  t: TestApp,
+  phone: string,
+  opts: Parameters<typeof seatUser>[2] = {},
+) {
+  const s = await signUp(t, phone)
+  const seated = await seatUser(t, s.user.id, opts)
+  return { ...s, ...seated }
+}

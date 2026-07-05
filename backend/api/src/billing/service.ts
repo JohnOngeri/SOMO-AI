@@ -130,7 +130,6 @@ export class BillingService {
         },
       })
       await this.grantPlus(input.userId, trialEnd)
-      await this.metering.record({ id: newUlid(), userId: input.userId, type: 'trial_start' })
       return sub
     }
 
@@ -375,7 +374,6 @@ export class BillingService {
         data: { timesRedeemed: { increment: 1 } },
       })
     }
-    await this.metering.record({ id: newUlid(), userId: sub.userId, type: 'upgrade' })
   }
 
   private async enterDunning(subscriptionId: string, at: Date) {
