@@ -32,11 +32,17 @@ function periodEnd(from: Date, interval: string): Date {
   return d
 }
 
+export interface BillingHooks {
+  /** invoked after a marketplace charge settles successfully via webhook */
+  marketplaceChargeSucceeded?: (providerRef: string) => Promise<void>
+}
+
 export class BillingService {
   constructor(
     private db: PrismaClient,
     private payments: PaymentProvider,
     private metering: MeteringService,
+    private hooks: BillingHooks = {},
   ) {}
 
   listPrices(currency?: string) {
@@ -334,6 +340,9 @@ export class BillingService {
       })
       if (chargeRow.subscription && chargeRow.subscription.status === 'pending') {
         await this.activate(chargeRow.subscription.id, chargeRow.subscription.couponCode)
+      }
+      if (chargeRow.purpose === 'marketplace') {
+        await this.hooks.marketplaceChargeSucceeded?.(chargeRow.providerRef)
       }
     } else if (event.type === 'charge.failed') {
       await this.db.paymentCharge.update({

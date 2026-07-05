@@ -62,14 +62,16 @@ export const packsRouter = router({
     if (!row || row.status !== 'live') throw new TRPCError({ code: 'NOT_FOUND' })
 
     const claims = await ctx.entitlements.claimsFor(ctx.auth.sub)
-    if (row.priceAmountMinor > 0 && claims.packs !== 'all_standard') {
+    const owned = await ctx.marketplace.hasGrant(ctx.auth.sub, row.id)
+    if (row.priceAmountMinor > 0 && claims.packs !== 'all_standard' && !owned) {
       throw new TRPCError({
         code: 'PAYMENT_REQUIRED',
         message: 'pack requires purchase or SOMO Plus',
       })
     }
 
-    if (claims.limits.maxActivePacks !== null) {
+    // purchased packs are the teacher's property — never blocked by the free-tier limit
+    if (claims.limits.maxActivePacks !== null && !owned) {
       const installed = await ctx.metering.distinctInstalledPacks(ctx.auth.sub)
       if (!installed.includes(row.id) && installed.length >= claims.limits.maxActivePacks) {
         await ctx.metering.record({

@@ -256,6 +256,7 @@ model PaymentCharge {
   status         String // pending | succeeded | failed
   failureCode    String?
   refundedMinor  Int      @default(0)
+  meta           Json     @default("{}")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -284,4 +285,62 @@ model Refund {
   idempotencyKey String   @unique
   amountMinor    Int
   createdAt      DateTime @default(now())
+}
+
+// ── Marketplace: sales, double-entry ledger, grants, payouts ──────────
+
+model PackGrant {
+  id     String   @id
+  packId String
+  userId String
+  source String // purchase | admin | promo
+  at     DateTime @default(now())
+
+  @@unique([packId, userId])
+  @@index([userId])
+}
+
+model Sale {
+  id              String   @id
+  packId          String
+  buyerId         String
+  creatorId       String
+  grossMinor      Int
+  platformFeeMinor Int
+  creatorNetMinor Int
+  currency        String
+  providerRef     String   @unique
+  refunded        Boolean  @default(false)
+  at              DateTime @default(now())
+
+  @@index([creatorId, at])
+}
+
+// Sign convention: credit positive, debit negative. Entries sharing a refId
+// MUST sum to zero (enforced in tests). Account balance = sum of its entries.
+model LedgerEntry {
+  id          String   @id
+  account     String // 'platform:clearing' | 'platform:revenue' | 'creator:{ulid}'
+  amountMinor Int
+  currency    String
+  type        String // sale_gross | platform_fee | creator_credit | payout | refund
+  refId       String
+  createdAt   DateTime @default(now())
+
+  @@index([account])
+  @@index([refId])
+}
+
+model Payout {
+  id          String    @id
+  creatorId   String
+  amountMinor Int
+  currency    String
+  status      String // pending | paid | failed
+  providerRef String?
+  idempotencyKey String @unique
+  requestedAt DateTime  @default(now())
+  settledAt   DateTime?
+
+  @@index([creatorId])
 }

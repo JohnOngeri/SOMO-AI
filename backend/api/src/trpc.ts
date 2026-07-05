@@ -6,6 +6,7 @@ import type { TokenService, AccessClaims } from './auth/tokens'
 import type { PaymentProvider } from '@somo/payments'
 import type { BillingService } from './billing/service'
 import type { EntitlementService } from './entitlements/service'
+import type { MarketplaceService } from './marketplace/service'
 import type { MeteringService } from './metering/service'
 import type { PackService, SigningKeys } from './packs/service'
 import type { SmsSender } from './sms'
@@ -24,6 +25,7 @@ export interface Services {
   metering: MeteringService
   payments: PaymentProvider
   billing: BillingService
+  marketplace: MarketplaceService
 }
 
 export interface Context extends Services {
