@@ -3,6 +3,7 @@ import { SeatRequiredError, type CoachService } from '../coach/service'
 import type { PrismaClient } from '../db'
 import { newUlid } from '../ids'
 import { QuotaExceededError, type MeteringService } from '../metering/service'
+import type { AnalyticsService } from '../analytics/service'
 import { SeatError, type SeatService } from '../seats/service'
 import type { SmsGate } from './smsgate'
 
@@ -40,6 +41,7 @@ export class GatewayService {
     private seats: SeatService,
     private metering: MeteringService,
     private smsGate: SmsGate,
+    private analytics?: AnalyticsService,
   ) {}
 
   private end(message: string): UssdResponse {
@@ -245,6 +247,7 @@ export class GatewayService {
       type: 'reflection',
       meta: { via: 'gateway' },
     })
+    await this.analytics?.ingest({ userId, source: 'reflection', text: transcript })
   }
 
   private async weekSummary(userId: string): Promise<string> {

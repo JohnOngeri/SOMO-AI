@@ -4,6 +4,7 @@ import type { PrismaClient } from '../db'
 import type { Env } from '../env'
 import { newUlid } from '../ids'
 import type { MeteringService } from '../metering/service'
+import type { AnalyticsService } from '../analytics/service'
 import type { SeatService } from '../seats/service'
 import type { AiProvider } from './provider'
 
@@ -24,6 +25,7 @@ export class CoachService {
     private seats: SeatService,
     private metering: MeteringService,
     private env: Env,
+    private analytics?: AnalyticsService,
   ) {}
 
   /**
@@ -66,6 +68,11 @@ export class CoachService {
     const overQuota = quotaNow.limit !== null && quotaNow.used >= quotaNow.limit
 
     if (cached) {
+      await this.analytics?.ingest({
+        userId: input.userId,
+        source: 'coach_question',
+        text: input.question,
+      })
       const reply = await this.storeReply({
         ...input,
         dnaProfileId: dna?.id ?? null,
@@ -84,6 +91,12 @@ export class CoachService {
       userId: input.userId,
       limit: monthlyAiCalls,
       meta: { mode: input.mode, licenseId: live.license.id },
+    })
+
+    await this.analytics?.ingest({
+      userId: input.userId,
+      source: 'coach_question',
+      text: input.question,
     })
 
     const short = input.mode === 'sms' || input.mode === 'ussd'
