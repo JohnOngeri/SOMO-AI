@@ -458,3 +458,44 @@ model AnalyticsSignal {
   @@index([topic, country, weekBucket])
   @@index([weekBucket])
 }
+
+// ── B2B sales: quotes -> orders -> invoices -> provisioned licenses ───
+
+model Order {
+  id              String   @id
+  institutionId   String
+  term            String
+  startDate       DateTime
+  endDate         DateTime
+  seats           Int
+  institutionType String // pricing-tier snapshot at quote time
+  currency        String
+  perSeatMinor    Int
+  discountPct     Int
+  totalMinor      Int
+  status          String   @default("QUOTE") // QUOTE | ORDERED | INVOICED | PAID | CANCELLED
+  licenseId       String?  @unique // set when provisioned on payment
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  invoice Invoice?
+
+  @@index([institutionId, status])
+}
+
+model Invoice {
+  id            String    @id
+  number        String    @unique // INV-2026-0007
+  orderId       String    @unique
+  institutionId String
+  currency      String
+  totalMinor    Int
+  issuedAt      DateTime  @default(now())
+  dueAt         DateTime
+  paidAt        DateTime?
+  paymentRef    String? // provider ref or bank-transfer reference
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@index([institutionId])
+}

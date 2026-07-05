@@ -52,7 +52,7 @@ export async function startTestApp(): Promise<TestApp> {
 
 export async function resetDb(db: PrismaClient): Promise<void> {
   await db.$executeRawUnsafe(
-    'TRUNCATE "User", "UserSettings", "OtpChallenge", "Device", "RefreshToken", "ClassDnaProfile", "DnaResponse", "ReflectionEntry", "SynthesisCard", "Pack", "UsageEvent", "Price", "Subscription", "Coupon", "PaymentCharge", "WebhookDelivery", "Refund", "PackGrant", "Sale", "LedgerEntry", "Payout", "CoachReply", "Institution", "License", "Seat", "AdminUser", "AnalyticsSignal" CASCADE',
+    'TRUNCATE "User", "UserSettings", "OtpChallenge", "Device", "RefreshToken", "ClassDnaProfile", "DnaResponse", "ReflectionEntry", "SynthesisCard", "Pack", "UsageEvent", "Price", "Subscription", "Coupon", "PaymentCharge", "WebhookDelivery", "Refund", "PackGrant", "Sale", "LedgerEntry", "Payout", "CoachReply", "Institution", "License", "Seat", "AdminUser", "AnalyticsSignal", "Order", "Invoice" CASCADE',
   )
 }
 

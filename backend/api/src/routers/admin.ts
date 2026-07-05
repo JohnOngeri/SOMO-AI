@@ -112,6 +112,11 @@ export const adminRouter = router({
     }
   }),
 
+  /** The institution's invoices (printable from the console). */
+  invoices: adminProcedure.query(({ ctx }) =>
+    ctx.sales.invoicesFor(ctx.adminIdentity.institutionId),
+  ),
+
   /** Impact & ROI — the per-term report institutional buyers renew on. */
   roi: adminProcedure.input(z.object({ licenseId: ulid })).query(async ({ ctx, input }) => {
     try {

@@ -9,6 +9,7 @@ import { marketplaceRouter } from './marketplace'
 import { meRouter } from './me'
 import { meteringRouter } from './metering'
 import { packsRouter } from './packs'
+import { salesRouter } from './sales'
 import { reflectionRouter } from './reflection'
 
 // B2B pivot: no teacher-facing billing surface. Institutions pay per seat via
@@ -25,6 +26,7 @@ export const appRouter = router({
   coach: coachRouter,
   admin: adminRouter,
   insights: insightsRouter,
+  sales: salesRouter,
 })
 
 export type AppRouter = typeof appRouter

@@ -4,6 +4,7 @@ import type { Env } from './env'
 import type { OtpService } from './auth/otp'
 import type { TokenService, AccessClaims } from './auth/tokens'
 import type { PaymentProvider } from '@somo/payments'
+import type { SalesService } from './billing/sales'
 import type { BillingService } from './billing/service'
 import type { AiProvider } from './coach/provider'
 import type { CoachService } from './coach/service'
@@ -42,6 +43,7 @@ export interface Services {
   admin: AdminService
   roi: RoiService
   analytics: AnalyticsService
+  sales: SalesService
 }
 
 export interface Context extends Services {
