@@ -8,6 +8,7 @@ import { TokenService } from './auth/tokens'
 import { BillingService } from './billing/service'
 import { AnthropicAiProvider, MockAiProvider, type AiProvider } from './coach/provider'
 import { CoachService } from './coach/service'
+import { AdminService } from './admin/service'
 import { EntitlementService } from './entitlements/service'
 import { GatewayService } from './gateway/service'
 import { SmsGate } from './gateway/smsgate'
@@ -95,6 +96,7 @@ export function buildServices(opts: BuildOptions = {}): Services {
     seats,
     smsGate,
     gateway: new GatewayService(db, coach, seats, metering, smsGate),
+    admin: new AdminService(db, seats, env),
     billing: new BillingService(db, payments, metering, {
       marketplaceChargeSucceeded: (ref) => marketplace.completeSaleForCharge(ref),
     }),

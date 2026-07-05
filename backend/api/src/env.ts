@@ -22,6 +22,9 @@ const envSchema = z.object({
   AI_MODEL_FAST: z.string().default('claude-haiku-4-5'),
   AI_MODEL_QUALITY: z.string().default('claude-sonnet-5'),
   AI_QUALITY_THRESHOLD_CHARS: z.coerce.number().int().positive().default(280),
+  /** unit costs in micro-USD for the institutional cost dashboard */
+  COST_PER_AI_CALL_USD_MICRO: z.coerce.number().int().nonnegative().default(5000), // $0.005
+  COST_PER_SMS_USD_MICRO: z.coerce.number().int().nonnegative().default(10000), // $0.01
 })
 
 export type Env = z.infer<typeof envSchema>

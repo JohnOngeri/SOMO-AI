@@ -408,6 +408,7 @@ model Seat {
   id                     String    @id
   licenseId              String
   teacherId              String?   @unique
+  label                  String? // roster name from CSV import — display only
   authPinHash            String    @unique // HMAC-SHA256; plaintext PIN shown exactly once
   status                 String    @default("UNCLAIMED") // UNCLAIMED | ACTIVE | REVOKED
   claimedAt              DateTime?
