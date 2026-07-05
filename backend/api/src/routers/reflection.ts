@@ -42,6 +42,11 @@ export const reflectionRouter = router({
         capturedAt: new Date(input.capturedAt),
       },
     })
+    await ctx.analytics.ingest({
+      userId: ctx.auth.sub,
+      source: 'reflection',
+      text: input.transcript,
+    })
     return { id: entry.id, duplicate: false }
   }),
 

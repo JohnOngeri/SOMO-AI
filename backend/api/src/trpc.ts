@@ -8,6 +8,7 @@ import type { BillingService } from './billing/service'
 import type { AiProvider } from './coach/provider'
 import type { CoachService } from './coach/service'
 import type { RoiService } from './admin/roi'
+import type { AnalyticsService } from './analytics/service'
 import type { AdminService } from './admin/service'
 import type { EntitlementService } from './entitlements/service'
 import type { GatewayService } from './gateway/service'
@@ -40,6 +41,7 @@ export interface Services {
   gateway: GatewayService
   admin: AdminService
   roi: RoiService
+  analytics: AnalyticsService
 }
 
 export interface Context extends Services {

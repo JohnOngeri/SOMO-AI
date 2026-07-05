@@ -4,6 +4,7 @@ import { authRouter } from './auth'
 import { coachRouter } from './coach'
 import { dnaRouter } from './dna'
 import { entitlementsRouter } from './entitlements'
+import { insightsRouter } from './insights'
 import { marketplaceRouter } from './marketplace'
 import { meRouter } from './me'
 import { meteringRouter } from './metering'
@@ -23,6 +24,7 @@ export const appRouter = router({
   marketplace: marketplaceRouter,
   coach: coachRouter,
   admin: adminRouter,
+  insights: insightsRouter,
 })
 
 export type AppRouter = typeof appRouter

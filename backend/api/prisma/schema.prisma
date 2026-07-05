@@ -377,6 +377,7 @@ model Institution {
   country             String
   billingContactEmail String?
   status              String   @default("ACTIVE") // ACTIVE | SUSPENDED
+  analyticsOptOut     Boolean  @default(false) // consent flag: no signals ingested when true
   createdAt           DateTime @default(now())
 
   licenses License[]
@@ -434,4 +435,26 @@ model AdminUser {
   createdAt     DateTime @default(now())
 
   institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+}
+
+// ── Analytics mart (aggregated + anonymized BY DESIGN) ────────────────
+// No userId, no phone, no institutionId, NO transcripts — only classification
+// labels + coarse geography. teacherHash is a keyed one-way hash used solely
+// for k-anonymity distinct counts. See docs/DATA_GOVERNANCE.md.
+
+model AnalyticsSignal {
+  id              String   @id
+  teacherHash     String
+  source          String // coach_question | reflection
+  topic           String
+  skill           String?
+  subject         String?
+  grade           String?
+  country         String
+  institutionType String
+  weekBucket      String // ISO week, YYYY-Www
+  createdAt       DateTime @default(now())
+
+  @@index([topic, country, weekBucket])
+  @@index([weekBucket])
 }

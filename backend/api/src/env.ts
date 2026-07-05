@@ -31,6 +31,8 @@ const envSchema = z.object({
   ROI_COST_PER_VISIT_USD_MICRO: z.coerce.number().int().nonnegative().default(15_000_000), // $15
   ROI_COMPETENCY_REFLECTIONS: z.coerce.number().int().positive().default(5),
   ROI_COMPETENCY_ASKS: z.coerce.number().int().positive().default(3),
+  /** k-anonymity: suppress any analytics cell with fewer distinct teachers */
+  ANALYTICS_K_THRESHOLD: z.coerce.number().int().positive().default(5),
 })
 
 export type Env = z.infer<typeof envSchema>

@@ -9,6 +9,7 @@ import { BillingService } from './billing/service'
 import { AnthropicAiProvider, MockAiProvider, type AiProvider } from './coach/provider'
 import { CoachService } from './coach/service'
 import { RoiService } from './admin/roi'
+import { AnalyticsService } from './analytics/service'
 import { AdminService } from './admin/service'
 import { EntitlementService } from './entitlements/service'
 import { GatewayService } from './gateway/service'
@@ -78,7 +79,8 @@ export function buildServices(opts: BuildOptions = {}): Services {
     (env.AI_PROVIDER === 'anthropic' && env.ANTHROPIC_API_KEY
       ? new AnthropicAiProvider(env.ANTHROPIC_API_KEY)
       : new MockAiProvider())
-  const coach = new CoachService(db, ai, seats, metering, env)
+  const analytics = new AnalyticsService(db, env)
+  const coach = new CoachService(db, ai, seats, metering, env, analytics)
   return {
     db,
     env,
@@ -96,9 +98,10 @@ export function buildServices(opts: BuildOptions = {}): Services {
     coach,
     seats,
     smsGate,
-    gateway: new GatewayService(db, coach, seats, metering, smsGate),
+    gateway: new GatewayService(db, coach, seats, metering, smsGate, analytics),
     admin: new AdminService(db, seats, env),
     roi: new RoiService(db, env),
+    analytics,
     billing: new BillingService(db, payments, metering, {
       marketplaceChargeSucceeded: (ref) => marketplace.completeSaleForCharge(ref),
     }),
