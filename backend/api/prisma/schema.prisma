@@ -28,6 +28,7 @@ model User {
   synthesisCards SynthesisCard[]
   settings      UserSettings?
   usageEvents   UsageEvent[]
+  seat          Seat?
 }
 
 model UserSettings {
@@ -364,4 +365,72 @@ model CoachReply {
 
   @@index([normalizedHash, dnaProfileId])
   @@index([userId, createdAt])
+}
+
+// ── B2B pivot: institutions, term licenses, PIN-authorized seats ──────
+// No metered action is served without an ACTIVE seat on an ACTIVE license.
+
+model Institution {
+  id                  String   @id
+  name                String
+  type                String // NGO | FELLOWSHIP | SCHOOL_NETWORK | MINISTRY | FOUNDATION
+  country             String
+  billingContactEmail String?
+  status              String   @default("ACTIVE") // ACTIVE | SUSPENDED
+  createdAt           DateTime @default(now())
+
+  licenses License[]
+  admins   AdminUser[]
+}
+
+model License {
+  id                    String   @id
+  institutionId         String
+  term                  String // e.g. "2026-T1"
+  startDate             DateTime
+  endDate               DateTime
+  seatsPurchased        Int
+  pricePerSeatMinor     Int
+  currency              String
+  status                String   @default("ACTIVE") // ACTIVE | EXPIRED | SUSPENDED
+  monthlyAiCallsPerSeat Int      @default(120)
+  monthlySmsPerSeat     Int      @default(60)
+  createdAt             DateTime @default(now())
+
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  seats       Seat[]
+
+  @@index([institutionId, status])
+  @@index([status, endDate])
+}
+
+model Seat {
+  id                     String    @id
+  licenseId              String
+  teacherId              String?   @unique
+  authPinHash            String    @unique // HMAC-SHA256; plaintext PIN shown exactly once
+  status                 String    @default("UNCLAIMED") // UNCLAIMED | ACTIVE | REVOKED
+  claimedAt              DateTime?
+  revokedAt              DateTime?
+  monthlyAiCallsOverride Int?
+  monthlySmsOverride     Int?
+  createdAt              DateTime  @default(now())
+
+  license License @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  teacher User?   @relation(fields: [teacherId], references: [id])
+
+  @@index([licenseId, status])
+}
+
+// Institution-side console users (coordinators / HQ staff), OTP-authenticated.
+model AdminUser {
+  id            String   @id
+  institutionId String
+  phone         String   @unique
+  displayName   String?
+  role          String // HQ_ADMIN | COORDINATOR
+  regionScope   String?
+  createdAt     DateTime @default(now())
+
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
 }

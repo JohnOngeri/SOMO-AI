@@ -13,6 +13,7 @@ import { MarketplaceService } from './marketplace/service'
 import { type Env, loadEnv } from './env'
 import { MeteringService } from './metering/service'
 import { PackService, type SigningKeys } from './packs/service'
+import { SeatService } from './seats/service'
 import { appRouter } from './routers/index'
 import { ConsoleSmsSender, type SmsSender } from './sms'
 import { FsObjectStore, type ObjectStore } from './storage'
@@ -86,6 +87,7 @@ export function buildServices(opts: BuildOptions = {}): Services {
     marketplace,
     ai,
     coach: new CoachService(db, ai, entitlements, metering, env),
+    seats: new SeatService(db, env),
     billing: new BillingService(db, payments, metering, {
       marketplaceChargeSucceeded: (ref) => marketplace.completeSaleForCharge(ref),
     }),
