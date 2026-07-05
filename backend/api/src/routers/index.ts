@@ -1,5 +1,6 @@
 import { router } from '../trpc'
 import { authRouter } from './auth'
+import { billingRouter } from './billing'
 import { dnaRouter } from './dna'
 import { entitlementsRouter } from './entitlements'
 import { meRouter } from './me'
@@ -15,6 +16,7 @@ export const appRouter = router({
   packs: packsRouter,
   entitlements: entitlementsRouter,
   metering: meteringRouter,
+  billing: billingRouter,
 })
 
 export type AppRouter = typeof appRouter

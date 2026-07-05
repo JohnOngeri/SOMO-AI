@@ -115,6 +115,37 @@ async function main() {
     console.log('seeded demo pack numeracy-foundations-term-1')
   }
 
+  // SOMO Plus price book (annual = 10× monthly, i.e. 2 months free) + launch coupon
+  const prices: [string, string, number][] = [
+    // [currency, interval, amountMinor]
+    ['KES', 'month', 26000], // KES 260
+    ['KES', 'year', 260000],
+    ['NGN', 'month', 300000], // NGN 3,000
+    ['NGN', 'year', 3000000],
+    ['TZS', 'month', 520000], // TZS 5,200
+    ['TZS', 'year', 5200000],
+    ['USD', 'month', 200], // $2
+    ['USD', 'year', 2000],
+  ]
+  for (const [cur, interval, amountMinor] of prices) {
+    await db.price.upsert({
+      where: { planId_currency_interval: { planId: 'plus', currency: cur, interval } },
+      update: { amountMinor },
+      create: { id: newUlid(), planId: 'plus', currency: cur, interval, amountMinor },
+    })
+  }
+  await db.coupon.upsert({
+    where: { code: 'LAUNCH25' },
+    update: {},
+    create: {
+      code: 'LAUNCH25',
+      percentOff: 25,
+      maxRedemptions: 500,
+      redeemBy: new Date(Date.now() + 90 * 86_400_000),
+    },
+  })
+  console.log('seeded plus price book (KES/NGN/TZS/USD) + LAUNCH25')
+
   console.log(`seeded teacher ${teacher.phone} (${teacher.id})`)
 }
 

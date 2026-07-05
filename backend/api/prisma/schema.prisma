@@ -190,3 +190,98 @@ model UsageEvent {
 
   @@index([userId, type, at])
 }
+
+// ── Billing (money paths: idempotent, auditable) ──────────────────────
+
+model Price {
+  id          String  @id
+  planId      String // 'plus' (org_seat pricing arrives with the org portal)
+  currency    String
+  interval    String // month | year
+  amountMinor Int
+  active      Boolean @default(true)
+
+  subscriptions Subscription[]
+
+  @@unique([planId, currency, interval])
+}
+
+model Subscription {
+  id                 String    @id
+  userId             String
+  priceId            String
+  status             String // pending | trialing | active | past_due | canceled | expired
+  channel            String // mobile_money | card | airtime
+  msisdn             String?
+  couponCode         String?
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  trialEndsAt        DateTime?
+  canceledAt         DateTime?
+  dunningAttempts    Int       @default(0)
+  nextRetryAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  price   Price           @relation(fields: [priceId], references: [id])
+  charges PaymentCharge[]
+
+  @@index([userId, status])
+  @@index([status, nextRetryAt])
+}
+
+model Coupon {
+  code              String    @id
+  percentOff        Int?
+  amountOffMinor    Int?
+  amountOffCurrency String?
+  redeemBy          DateTime?
+  maxRedemptions    Int?
+  timesRedeemed     Int       @default(0)
+}
+
+// Audit row per charge attempt. providerRef + idempotencyKey are unique:
+// a retried request can never double-charge, a replayed webhook never double-applies.
+model PaymentCharge {
+  id             String   @id
+  userId         String
+  subscriptionId String?
+  purpose        String // subscription | renewal | trial_conversion | marketplace
+  amountMinor    Int
+  currency       String
+  channel        String
+  provider       String
+  providerRef    String   @unique
+  idempotencyKey String   @unique
+  status         String // pending | succeeded | failed
+  failureCode    String?
+  refundedMinor  Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+
+  @@index([userId, createdAt])
+}
+
+// Raw webhook bodies stored BEFORE processing; eventId unique = replay-proof.
+model WebhookDelivery {
+  id          String    @id
+  provider    String
+  eventId     String    @unique
+  type        String
+  providerRef String
+  rawBody     String
+  verified    Boolean
+  processedAt DateTime?
+  receivedAt  DateTime  @default(now())
+}
+
+model Refund {
+  id             String   @id
+  providerRef    String
+  refundRef      String   @unique
+  idempotencyKey String   @unique
+  amountMinor    Int
+  createdAt      DateTime @default(now())
+}
