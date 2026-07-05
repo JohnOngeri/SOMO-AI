@@ -7,6 +7,7 @@ import type { PaymentProvider } from '@somo/payments'
 import type { BillingService } from './billing/service'
 import type { AiProvider } from './coach/provider'
 import type { CoachService } from './coach/service'
+import type { AdminService } from './admin/service'
 import type { EntitlementService } from './entitlements/service'
 import type { GatewayService } from './gateway/service'
 import type { SmsGate } from './gateway/smsgate'
@@ -36,6 +37,7 @@ export interface Services {
   seats: SeatService
   smsGate: SmsGate
   gateway: GatewayService
+  admin: AdminService
 }
 
 export interface Context extends Services {
