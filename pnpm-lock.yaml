@@ -47,6 +47,9 @@ importers:
       '@somo/packsign':
         specifier: workspace:*
         version: link:../../packages/packsign
+      '@somo/payments':
+        specifier: workspace:*
+        version: link:../../packages/payments
       '@somo/types':
         specifier: workspace:*
         version: link:../../packages/types

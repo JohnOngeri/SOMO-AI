@@ -1,9 +1,11 @@
 import Fastify, { type FastifyInstance } from 'fastify'
 import { fastifyTRPCPlugin, type CreateFastifyContextOptions } from '@trpc/server/adapters/fastify'
 import { generateEd25519Keypair } from '@somo/packsign'
+import { SandboxPaymentProvider, type PaymentProvider } from '@somo/payments'
 import { createDb, type PrismaClient } from './db'
 import { OtpService } from './auth/otp'
 import { TokenService } from './auth/tokens'
+import { BillingService } from './billing/service'
 import { EntitlementService } from './entitlements/service'
 import { type Env, loadEnv } from './env'
 import { MeteringService } from './metering/service'
@@ -18,6 +20,7 @@ export interface BuildOptions {
   db?: PrismaClient
   sms?: SmsSender
   store?: ObjectStore
+  payments?: PaymentProvider
   /** pass prebuilt services (tests inspect them directly) */
   services?: Services
 }
@@ -55,17 +58,21 @@ export function buildServices(opts: BuildOptions = {}): Services {
     env.ENTITLEMENT_SIGNING_PRIVATE_KEY,
     env.ENTITLEMENT_SIGNING_PUBLIC_KEY,
   )
+  const payments = opts.payments ?? new SandboxPaymentProvider()
+  const metering = new MeteringService(db)
   return {
     db,
     env,
     sms,
     store,
     packKeys,
+    payments,
     otp: new OtpService(db, sms, env),
     tokens: new TokenService(db, env),
     packs: new PackService(db, store, packKeys),
     entitlements: new EntitlementService(db, entitlementKeys),
-    metering: new MeteringService(db),
+    metering,
+    billing: new BillingService(db, payments, metering),
   }
 }
 
@@ -113,6 +120,20 @@ export async function buildServer(opts: BuildOptions = {}): Promise<FastifyInsta
         return { ...services, auth }
       },
     },
+  })
+
+  // Payment provider webhooks. Raw body preserved for signature verification;
+  // stored before processing; idempotent by event id.
+  await app.register(async (scope) => {
+    scope.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) =>
+      done(null, body),
+    )
+    scope.post('/webhooks/payments', async (req, reply) => {
+      const signature = String(req.headers['x-somo-signature'] ?? '')
+      const result = await services.billing.applyWebhook(String(req.body), signature)
+      if (!result.ok) return reply.code(401).send({ error: 'invalid_signature' })
+      return { received: true, duplicate: result.duplicate }
+    })
   })
 
   app.addHook('onClose', async () => {

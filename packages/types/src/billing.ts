@@ -16,6 +16,7 @@ export const price = z.object({
 export type Price = z.infer<typeof price>
 
 export const subscriptionStatus = z.enum([
+  'pending', // charge in flight (mobile-money STK push)
   'trialing',
   'active',
   'past_due', // in dunning
