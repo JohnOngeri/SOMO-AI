@@ -46,3 +46,6 @@ project/
 # embedded test postgres
 .pgdata-test/
 backend/api/src/generated/
+
+# local pack object storage (FsObjectStore)
+backend/api/storage/

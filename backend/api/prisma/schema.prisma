@@ -144,3 +144,28 @@ model SynthesisCard {
 
   @@unique([userId, date])
 }
+
+// ── Signed lesson packs ───────────────────────────────────────────────
+
+model Pack {
+  id               String   @id
+  slug             String   @unique
+  title            String
+  subject          String
+  gradeLevels      String[]
+  locale           String
+  version          String
+  publisherId      String
+  sizeBytes        Int
+  contentHash      String
+  lessons          Json
+  priceAmountMinor Int      @default(0)
+  priceCurrency    String   @default("KES")
+  signature        String
+  publicKeyId      String
+  storageKey       String
+  status           String   @default("live") // live | suspended
+  createdAt        DateTime @default(now())
+
+  @@index([status, subject])
+}
