@@ -6,8 +6,8 @@ export type PlanId = z.infer<typeof planId>
 
 /** Per-plan limits. null = unlimited. */
 export const planLimits = z.object({
-  asksPerWeek: z.number().int().positive().nullable(),
-  maxActivePacks: z.number().int().positive().nullable(),
+  asksPerWeek: z.number().int().nonnegative().nullable(),
+  maxActivePacks: z.number().int().nonnegative().nullable(),
 })
 export type PlanLimits = z.infer<typeof planLimits>
 

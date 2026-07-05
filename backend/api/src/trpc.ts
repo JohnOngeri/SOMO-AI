@@ -11,6 +11,7 @@ import type { EntitlementService } from './entitlements/service'
 import type { MarketplaceService } from './marketplace/service'
 import type { MeteringService } from './metering/service'
 import type { PackService, SigningKeys } from './packs/service'
+import type { SeatService } from './seats/service'
 import type { SmsSender } from './sms'
 import type { ObjectStore } from './storage'
 
@@ -30,6 +31,7 @@ export interface Services {
   marketplace: MarketplaceService
   ai: AiProvider
   coach: CoachService
+  seats: SeatService
 }
 
 export interface Context extends Services {
