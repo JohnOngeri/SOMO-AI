@@ -58,7 +58,7 @@ export class SeatService {
     name: string
     type: string
     country: string
-    billingContactEmail?: string
+    billingContactEmail?: string | undefined
   }) {
     return this.db.institution.create({
       data: {

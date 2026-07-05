@@ -5,6 +5,7 @@ import { SandboxPaymentProvider, type PaymentProvider } from '@somo/payments'
 import { createDb, type PrismaClient } from './db'
 import { OtpService } from './auth/otp'
 import { TokenService } from './auth/tokens'
+import { SalesService } from './billing/sales'
 import { BillingService } from './billing/service'
 import { AnthropicAiProvider, MockAiProvider, type AiProvider } from './coach/provider'
 import { CoachService } from './coach/service'
@@ -102,6 +103,7 @@ export function buildServices(opts: BuildOptions = {}): Services {
     admin: new AdminService(db, seats, env),
     roi: new RoiService(db, env),
     analytics,
+    sales: new SalesService(db, seats),
     billing: new BillingService(db, payments, metering, {
       marketplaceChargeSucceeded: (ref) => marketplace.completeSaleForCharge(ref),
     }),

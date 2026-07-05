@@ -40,9 +40,9 @@ export class AdminService {
   async addAdmin(input: {
     institutionId: string
     phone: string
-    displayName?: string
+    displayName?: string | undefined
     role: 'HQ_ADMIN' | 'COORDINATOR'
-    regionScope?: string
+    regionScope?: string | undefined
   }) {
     return this.db.adminUser.create({
       data: {

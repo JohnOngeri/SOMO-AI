@@ -59,7 +59,7 @@ export interface WebhookEvent {
  * sandbox) implements this. Billing code depends ONLY on this interface.
  */
 export interface PaymentProvider {
-  readonly id: 'sandbox' | 'flutterwave' | 'paystack'
+  readonly id: 'sandbox' | 'flutterwave' | 'paystack' | 'stripe'
 
   createCharge(input: CreateChargeInput): Promise<Charge>
 
