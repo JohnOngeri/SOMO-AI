@@ -9,6 +9,8 @@ import { BillingService } from './billing/service'
 import { AnthropicAiProvider, MockAiProvider, type AiProvider } from './coach/provider'
 import { CoachService } from './coach/service'
 import { EntitlementService } from './entitlements/service'
+import { GatewayService } from './gateway/service'
+import { SmsGate } from './gateway/smsgate'
 import { MarketplaceService } from './marketplace/service'
 import { type Env, loadEnv } from './env'
 import { MeteringService } from './metering/service'
@@ -66,12 +68,15 @@ export function buildServices(opts: BuildOptions = {}): Services {
   const payments = opts.payments ?? new SandboxPaymentProvider()
   const metering = new MeteringService(db)
   const marketplace = new MarketplaceService(db, payments)
-  const entitlements = new EntitlementService(db, entitlementKeys)
+  const seats = new SeatService(db, env)
+  const entitlements = new EntitlementService(db, entitlementKeys, seats)
+  const smsGate = new SmsGate(db, seats, metering, sms)
   const ai =
     opts.ai ??
     (env.AI_PROVIDER === 'anthropic' && env.ANTHROPIC_API_KEY
       ? new AnthropicAiProvider(env.ANTHROPIC_API_KEY)
       : new MockAiProvider())
+  const coach = new CoachService(db, ai, seats, metering, env)
   return {
     db,
     env,
@@ -86,8 +91,10 @@ export function buildServices(opts: BuildOptions = {}): Services {
     metering,
     marketplace,
     ai,
-    coach: new CoachService(db, ai, entitlements, metering, env),
-    seats: new SeatService(db, env),
+    coach,
+    seats,
+    smsGate,
+    gateway: new GatewayService(db, coach, seats, metering, smsGate),
     billing: new BillingService(db, payments, metering, {
       marketplaceChargeSucceeded: (ref) => marketplace.completeSaleForCharge(ref),
     }),
@@ -113,12 +120,14 @@ export async function buildServer(opts: BuildOptions = {}): Promise<FastifyInsta
 
     const row = await services.db.pack.findUnique({ where: { id: req.params.id } })
     if (!row || row.status !== 'live') return reply.code(404).send({ error: 'not_found' })
-    if (row.priceAmountMinor > 0) {
-      const claims = await services.entitlements.claimsFor(auth.sub)
-      const owned = await services.marketplace.hasGrant(auth.sub, row.id)
-      if (claims.packs !== 'all_standard' && !owned) {
-        return reply.code(402).send({ error: 'payment_required' })
-      }
+    // fail closed: pack bytes are metered distribution — seat required
+    const claims = await services.entitlements.claimsFor(auth.sub)
+    const owned = await services.marketplace.hasGrant(auth.sub, row.id)
+    if (claims.plan === 'none' && !owned) {
+      return reply.code(403).send({ error: 'seat_required' })
+    }
+    if (row.priceAmountMinor > 0 && claims.packs !== 'all_standard' && !owned) {
+      return reply.code(402).send({ error: 'payment_required' })
     }
 
     const bytes = await services.packs.getArchive(row.storageKey)
@@ -152,6 +161,29 @@ export async function buildServer(opts: BuildOptions = {}): Promise<FastifyInsta
       const result = await services.billing.applyWebhook(String(req.body), signature)
       if (!result.ok) return reply.code(401).send({ error: 'invalid_signature' })
       return { received: true, duplicate: result.duplicate }
+    })
+  })
+
+  // USSD/SMS gateway (Africa's Talking-compatible, form-encoded webhooks).
+  // Authorization lives inside GatewayService: unbound MSISDNs never reach
+  // the LLM and never trigger a paid outbound SMS.
+  await app.register(async (scope) => {
+    const { default: formbody } = await import('@fastify/formbody')
+    await scope.register(formbody)
+
+    scope.post('/gateway/ussd', async (req, reply) => {
+      const body = req.body as Record<string, string>
+      const res = await services.gateway.handleUssd({
+        phoneNumber: body.phoneNumber ?? '',
+        text: body.text ?? '',
+      })
+      return reply.type('text/plain').send(`${res.type} ${res.message}`)
+    })
+
+    scope.post('/gateway/sms', async (req) => {
+      const body = req.body as Record<string, string>
+      await services.gateway.handleSms({ from: body.from ?? '', text: body.text ?? '' })
+      return { ok: true }
     })
   })
 

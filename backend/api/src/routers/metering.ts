@@ -1,11 +1,12 @@
-import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { ulid, usageEventType } from '@somo/types'
-import { QuotaExceededError } from '../metering/service'
 import { authedProcedure, router } from '../trpc'
 
-/** Event types clients may self-report; money-adjacent types are server-only. */
-const clientReportable = usageEventType.exclude(['upgrade', 'trial_start', 'referral_redeem'])
+/**
+ * Event types clients may self-report. Cost-ledger types (ai_call, sms_out,
+ * ussd_session, quota_block, seat_redeemed) are SERVER-written only.
+ */
+const clientReportable = usageEventType.extract(['pack_install', 'reflection', 'active_day'])
 
 export const meteringRouter = router({
   record: authedProcedure
@@ -28,35 +29,6 @@ export const meteringRouter = router({
       return { applied }
     }),
 
-  /**
-   * Consume one Ask Coach credit (or verify unlimited). The AI coach (phase 7)
-   * calls the same gate internally; SMS/USSD asks flow through it too.
-   */
-  ask: authedProcedure
-    .input(z.object({ id: ulid, meta: z.record(z.string(), z.string()).optional() }))
-    .mutation(async ({ ctx, input }) => {
-      const claims = await ctx.entitlements.claimsFor(ctx.auth.sub)
-      try {
-        return await ctx.metering.recordAskOrThrow({
-          id: input.id,
-          userId: ctx.auth.sub,
-          limit: claims.limits.asksPerWeek,
-          ...(input.meta ? { meta: input.meta } : {}),
-        })
-      } catch (e) {
-        if (e instanceof QuotaExceededError) {
-          throw new TRPCError({
-            code: 'FORBIDDEN',
-            message: 'quota_exceeded',
-            cause: e.quota,
-          })
-        }
-        throw e
-      }
-    }),
-
-  quota: authedProcedure.query(async ({ ctx }) => {
-    const claims = await ctx.entitlements.claimsFor(ctx.auth.sub)
-    return ctx.metering.askQuota(ctx.auth.sub, claims.limits.asksPerWeek)
-  }),
+  /** Monthly AI-call quota state for the caller's seat (0 when seatless). */
+  quota: authedProcedure.query(async ({ ctx }) => ctx.coach.quota(ctx.auth.sub)),
 })

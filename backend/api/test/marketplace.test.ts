@@ -4,6 +4,12 @@ import { newUlid } from '../src/ids'
 import { splitFee } from '../src/marketplace/service'
 import { resetDb, signUp, startTestApp, type TestApp } from './helpers'
 
+/**
+ * Post-pivot, the marketplace is DORMANT product surface (institutions license
+ * content; teachers buy nothing). The ledger/payout machinery stays tested at
+ * the service level because P6 invoicing reuses it and creator payouts remain.
+ */
+
 let t: TestApp
 
 beforeEach(async () => {
@@ -48,17 +54,17 @@ async function ledgerSumsByRef() {
   return byRef
 }
 
-describe('buying a pack', () => {
+describe('sales split + ledger', () => {
   it('splits 25% platform fee, grants the pack, and balances the ledger', async () => {
     const { creator, pack } = await makeCreatorWithPaidPack()
     const buyer = await signUp(t, '+254730000002')
-    const api = t.client(buyer.accessToken)
 
-    const result = await api.marketplace.buy.mutate({
-      idempotencyKey: newUlid(),
+    const result = await t.services.marketplace.buyPack({
+      buyerId: buyer.user.id,
       packId: pack.id,
       channel: 'mobile_money',
       msisdn: GOOD_MSISDN,
+      idempotencyKey: newUlid(),
     })
     expect(result.alreadyOwned).toBe(false)
 
@@ -74,13 +80,12 @@ describe('buying a pack', () => {
       creatorId: creator.user.id,
     })
 
-    // journal balances to zero per refId
     for (const [ref, sum] of await ledgerSumsByRef()) {
       expect(sum, `refId ${ref}`).toBe(0)
     }
 
-    // a FREE-plan buyer can now download the paid pack all the way to bytes
-    const dl = await api.packs.download.mutate({ id: pack.id })
+    // a grant is property: the buyer can download it even without a seat
+    const dl = await t.client(buyer.accessToken).packs.download.mutate({ id: pack.id })
     const res = await fetch(`${t.url}${dl.archivePath}`, {
       headers: { authorization: `Bearer ${buyer.accessToken}` },
     })
@@ -90,19 +95,18 @@ describe('buying a pack', () => {
   it('is idempotent: retried key and repeat purchase never double-charge', async () => {
     const { pack } = await makeCreatorWithPaidPack()
     const buyer = await signUp(t, '+254730000003')
-    const api = t.client(buyer.accessToken)
     const key = newUlid()
     const input = {
-      idempotencyKey: key,
+      buyerId: buyer.user.id,
       packId: pack.id,
       channel: 'mobile_money' as const,
       msisdn: GOOD_MSISDN,
     }
-    const a = await api.marketplace.buy.mutate(input)
+    const a = await t.services.marketplace.buyPack({ ...input, idempotencyKey: key })
     expect(a.alreadyOwned).toBe(false)
-    const b = await api.marketplace.buy.mutate(input)
+    const b = await t.services.marketplace.buyPack({ ...input, idempotencyKey: key })
     expect(b.alreadyOwned).toBe(true)
-    const c = await api.marketplace.buy.mutate({ ...input, idempotencyKey: newUlid() })
+    const c = await t.services.marketplace.buyPack({ ...input, idempotencyKey: newUlid() })
     expect(c.alreadyOwned).toBe(true)
 
     expect(await t.db.sale.count()).toBe(1)
@@ -113,11 +117,12 @@ describe('buying a pack', () => {
     const { pack } = await makeCreatorWithPaidPack()
     const buyer = await signUp(t, '+254730000004')
     await expect(
-      t.client(buyer.accessToken).marketplace.buy.mutate({
-        idempotencyKey: newUlid(),
+      t.services.marketplace.buyPack({
+        buyerId: buyer.user.id,
         packId: pack.id,
         channel: 'mobile_money',
         msisdn: '+254700000000',
+        idempotencyKey: newUlid(),
       }),
     ).rejects.toThrow(/charge_failed|insufficient/)
     expect(await t.db.sale.count()).toBe(0)
@@ -125,44 +130,19 @@ describe('buying a pack', () => {
     expect(await t.db.ledgerEntry.count()).toBe(0)
   })
 
-  it('free packs are not for sale', async () => {
-    const { creator } = await makeCreatorWithPaidPack()
-    const freePub = await t.client(creator.accessToken).packs.publish.mutate({
-      slug: 'free-pack-x',
-      title: 'Free Pack',
-      subject: 'Maths',
-      gradeLevels: ['P4'],
-      locale: 'en',
-      version: '1.0.0',
-      lessons: [{ index: 0, title: 'L', minutes: 30 }],
-      priceAmountMinor: 0,
-      priceCurrency: 'KES',
-      archiveBase64: Buffer.from('x').toString('base64'),
-    })
-    const buyer = await signUp(t, '+254730000005')
-    await expect(
-      t.client(buyer.accessToken).marketplace.buy.mutate({
-        idempotencyKey: newUlid(),
-        packId: freePub.manifest.id,
-        channel: 'mobile_money',
-        msisdn: GOOD_MSISDN,
-      }),
-    ).rejects.toThrow(/not_for_sale|free/)
-  })
-
-  it('pending mobile-money purchase completes through the webhook', async () => {
+  it('pending mobile-money purchase completes through the verified webhook', async () => {
     const { pack } = await makeCreatorWithPaidPack()
     const buyer = await signUp(t, '+254730000006')
-    const api = t.client(buyer.accessToken)
 
     await expect(
-      api.marketplace.buy.mutate({
-        idempotencyKey: newUlid(),
+      t.services.marketplace.buyPack({
+        buyerId: buyer.user.id,
         packId: pack.id,
         channel: 'mobile_money',
         msisdn: PENDING_MSISDN,
+        idempotencyKey: newUlid(),
       }),
-    ).rejects.toThrow(/payment_pending|CONFLICT/)
+    ).rejects.toThrow(/payment_pending/)
     expect(await t.db.sale.count()).toBe(0)
 
     const charge = await t.db.paymentCharge.findFirstOrThrow({
@@ -179,6 +159,21 @@ describe('buying a pack', () => {
     expect(await t.db.sale.count()).toBe(1)
     expect(await t.db.packGrant.count({ where: { userId: buyer.user.id } })).toBe(1)
     for (const [, sum] of await ledgerSumsByRef()) expect(sum).toBe(0)
+
+    // replaying the webhook is a no-op; tampering is rejected and stored
+    const replay = await fetch(`${t.url}/webhooks/payments`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-somo-signature': signature },
+      body: rawBody,
+    })
+    expect(((await replay.json()) as { duplicate: boolean }).duplicate).toBe(true)
+    const tampered = await fetch(`${t.url}/webhooks/payments`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-somo-signature': 'deadbeef' },
+      body: rawBody,
+    })
+    expect(tampered.status).toBe(401)
+    expect(await t.db.sale.count()).toBe(1)
   })
 })
 
@@ -187,11 +182,12 @@ describe('creator earnings + payouts', () => {
     const { creator, pack } = await makeCreatorWithPaidPack()
     for (const phone of ['+254730000010', '+254730000011']) {
       const buyer = await signUp(t, phone)
-      await t.client(buyer.accessToken).marketplace.buy.mutate({
-        idempotencyKey: newUlid(),
+      await t.services.marketplace.buyPack({
+        buyerId: buyer.user.id,
         packId: pack.id,
         channel: 'mobile_money',
         msisdn: GOOD_MSISDN,
+        idempotencyKey: newUlid(),
       })
     }
 
@@ -213,7 +209,6 @@ describe('creator earnings + payouts', () => {
     expect(after.paidOutMinor).toBe(39000)
     for (const [, sum] of await ledgerSumsByRef()) expect(sum).toBe(0)
 
-    // platform kept its 25%
     const revenue = await t.db.ledgerEntry.aggregate({
       where: { account: 'platform:revenue' },
       _sum: { amountMinor: true },
@@ -221,14 +216,15 @@ describe('creator earnings + payouts', () => {
     expect(revenue._sum.amountMinor).toBe(6500 * 2)
   })
 
-  it('payout requests are idempotent and refuse dust balances', async () => {
+  it('payout requests are idempotent and refuse dust balances; non-creators are refused', async () => {
     const { creator, pack } = await makeCreatorWithPaidPack()
     const buyer = await signUp(t, '+254730000012')
-    await t.client(buyer.accessToken).marketplace.buy.mutate({
-      idempotencyKey: newUlid(),
+    await t.services.marketplace.buyPack({
+      buyerId: buyer.user.id,
       packId: pack.id,
       channel: 'mobile_money',
       msisdn: GOOD_MSISDN,
+      idempotencyKey: newUlid(),
     })
 
     const api = t.client(creator.accessToken)
@@ -236,15 +232,11 @@ describe('creator earnings + payouts', () => {
     const p1 = await api.marketplace.requestPayout.mutate({ idempotencyKey: key, currency: 'KES' })
     const p2 = await api.marketplace.requestPayout.mutate({ idempotencyKey: key, currency: 'KES' })
     expect(p2.id).toBe(p1.id)
-    // balance now zero -> a fresh request refuses
     await expect(
       api.marketplace.requestPayout.mutate({ idempotencyKey: newUlid(), currency: 'KES' }),
     ).rejects.toThrow(/insufficient_balance/)
-  })
 
-  it('non-creators cannot read earnings or cash out', async () => {
-    const teacher = await signUp(t, '+254730000013')
-    await expect(t.client(teacher.accessToken).marketplace.earnings.query()).rejects.toThrow(
+    await expect(t.client(buyer.accessToken).marketplace.earnings.query()).rejects.toThrow(
       /FORBIDDEN|creator/,
     )
   })
@@ -254,34 +246,31 @@ describe('refunding a sale', () => {
   it('reverses the journal, revokes the grant, and blocks re-download', async () => {
     const { pack } = await makeCreatorWithPaidPack()
     const buyer = await signUp(t, '+254730000020')
-    const api = t.client(buyer.accessToken)
-    await api.marketplace.buy.mutate({
-      idempotencyKey: newUlid(),
+    await t.services.marketplace.buyPack({
+      buyerId: buyer.user.id,
       packId: pack.id,
       channel: 'mobile_money',
       msisdn: GOOD_MSISDN,
+      idempotencyKey: newUlid(),
     })
 
     const sale = await t.db.sale.findFirstOrThrow()
     const refunded = await t.services.marketplace.refundSale(sale.id, newUlid())
     expect(refunded.refunded).toBe(true)
-    // idempotent
     const again = await t.services.marketplace.refundSale(sale.id, newUlid())
     expect(again.refunded).toBe(true)
     expect(await t.db.ledgerEntry.count({ where: { type: 'refund' } })).toBe(3)
 
     for (const [, sum] of await ledgerSumsByRef()) expect(sum).toBe(0)
-    // creator + revenue net to zero after the reversal
-    for (const account of ['platform:revenue']) {
-      const agg = await t.db.ledgerEntry.aggregate({
-        where: { account },
-        _sum: { amountMinor: true },
-      })
-      expect(agg._sum.amountMinor).toBe(0)
-    }
+    const agg = await t.db.ledgerEntry.aggregate({
+      where: { account: 'platform:revenue' },
+      _sum: { amountMinor: true },
+    })
+    expect(agg._sum.amountMinor).toBe(0)
 
-    await expect(api.packs.download.mutate({ id: pack.id })).rejects.toThrow(
-      /purchase or SOMO Plus/,
-    )
+    // grant revoked + no seat -> fail closed
+    await expect(
+      t.client(buyer.accessToken).packs.download.mutate({ id: pack.id }),
+    ).rejects.toThrow(/seat_required/)
   })
 })

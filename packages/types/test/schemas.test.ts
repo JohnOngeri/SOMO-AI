@@ -3,7 +3,7 @@ import {
   askCoachInput,
   coupon,
   entitlementClaims,
-  freeLimits,
+  seatlessLimits,
   ledgerEntry,
   money,
   outboxEvent,
@@ -69,9 +69,8 @@ describe('coach + quota', () => {
     }
   })
 
-  it('free plan ships with 5 asks/week and 1 active pack', () => {
-    expect(freeLimits.asksPerWeek).toBe(5)
-    expect(freeLimits.maxActivePacks).toBe(1)
+  it('the seatless plan is zeroed — fail closed by contract', () => {
+    expect(seatlessLimits).toEqual({ aiCallsPerMonth: 0, smsPerMonth: 0, maxActivePacks: 0 })
   })
 })
 
@@ -115,11 +114,13 @@ describe('packs', () => {
 })
 
 describe('entitlements', () => {
-  it('parses plus claims with unlimited limits', () => {
+  it('parses org_seat claims with license quotas', () => {
     const claims = {
       sub: ULID,
-      plan: 'plus',
-      limits: { asksPerWeek: null, maxActivePacks: null },
+      plan: 'org_seat',
+      seatId: ULID,
+      licenseId: ULID,
+      limits: { aiCallsPerMonth: 120, smsPerMonth: 60, maxActivePacks: null },
       packs: 'all_standard',
       iat: 1_800_000_000,
       exp: 1_800_600_000,
@@ -131,8 +132,8 @@ describe('entitlements', () => {
   it('caps grace at 30 days', () => {
     const claims = {
       sub: ULID,
-      plan: 'free',
-      limits: freeLimits,
+      plan: 'none',
+      limits: seatlessLimits,
       packs: [ULID],
       iat: 1,
       exp: 2,
@@ -183,7 +184,7 @@ describe('sync', () => {
 
 describe('metering', () => {
   it('meta defaults to empty object', () => {
-    const parsed = usageEvent.parse({ id: ULID, userId: ULID, type: 'ask_coach', at: ISO })
+    const parsed = usageEvent.parse({ id: ULID, userId: ULID, type: 'ai_call', at: ISO })
     expect(parsed.meta).toEqual({})
   })
 })

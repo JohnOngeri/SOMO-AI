@@ -1,8 +1,9 @@
 import { TRPCError } from '@trpc/server'
-import { refreshInput, requestOtpInput, verifyOtpInput } from '@somo/types'
+import { redeemPinInput, refreshInput, requestOtpInput, verifyOtpInput } from '@somo/types'
 import { OtpError } from '../auth/otp'
 import { newUlid } from '../ids'
-import { publicProcedure, router } from '../trpc'
+import { SeatError } from '../seats/service'
+import { authedProcedure, publicProcedure, router } from '../trpc'
 
 function toTrpcError(e: unknown): never {
   if (e instanceof OtpError) {
@@ -93,6 +94,33 @@ export const authRouter = router({
       accessToken: token,
       accessTokenExpiresAt: expiresAt.toISOString(),
       refreshToken: rotated.newToken,
+    }
+  }),
+
+  /**
+   * The one-time PIN step of onboarding: binds this account to a seat on an
+   * institution's license. Until this succeeds the account exists but is
+   * entitled to nothing metered.
+   */
+  redeemPin: authedProcedure.input(redeemPinInput).mutation(async ({ ctx, input }) => {
+    try {
+      const seat = await ctx.seats.redeemPin(input.pin, ctx.auth.sub)
+      await ctx.metering.record({
+        id: newUlid(),
+        userId: ctx.auth.sub,
+        type: 'seat_redeemed',
+        meta: { seatId: seat.id },
+      })
+      const { token, claims } = await ctx.entitlements.issueToken(ctx.auth.sub)
+      return { seatId: seat.id, token, claims, ...ctx.entitlements.publicKeyInfo }
+    } catch (e) {
+      if (e instanceof SeatError) {
+        throw new TRPCError({
+          code: e.code === 'invalid_pin' ? 'NOT_FOUND' : 'FORBIDDEN',
+          message: e.code,
+        })
+      }
+      throw e
     }
   }),
 })

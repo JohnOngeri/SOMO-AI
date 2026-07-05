@@ -1,29 +1,38 @@
 import { sha256Hex } from '@somo/packsign'
 import type { AskMode } from '@somo/types'
 import type { PrismaClient } from '../db'
-import type { EntitlementService } from '../entitlements/service'
 import type { Env } from '../env'
 import { newUlid } from '../ids'
 import type { MeteringService } from '../metering/service'
+import type { SeatService } from '../seats/service'
 import type { AiProvider } from './provider'
 
 /** SMS/USSD answers must fit comfortably in concatenated SMS segments. */
 const SMS_MAX_CHARS = 380
 
+/** Thrown before ANY paid action when the asker has no authorized seat. */
+export class SeatRequiredError extends Error {
+  constructor() {
+    super('seat_required')
+  }
+}
+
 export class CoachService {
   constructor(
     private db: PrismaClient,
     private ai: AiProvider,
-    private entitlements: EntitlementService,
+    private seats: SeatService,
     private metering: MeteringService,
     private env: Env,
   ) {}
 
   /**
-   * The Ask Coach pipeline: idempotency -> quota gate -> answer cache ->
-   * DNA/pack grounding -> cost-routed model -> stored reply.
-   * Voice asks arrive here already transcribed (transcription worker feeds
-   * the same path); SMS/USSD asks come via the gateway with mode set.
+   * The Ask Coach pipeline, fail-closed:
+   *   idempotency -> SEAT GATE -> answer cache (free) -> quota consume ->
+   *   DNA/pack grounding -> cost-routed model -> stored reply.
+   * No seat: SeatRequiredError before anything that costs money.
+   * Over quota: cached answers still serve (degraded); a cache miss throws
+   * QuotaExceededError — the LLM is never called.
    */
   async ask(input: {
     userId: string
@@ -36,43 +45,46 @@ export class CoachService {
     const existing = await this.db.coachReply.findUnique({ where: { askId: input.askId } })
     if (existing) {
       if (existing.userId !== input.userId) throw new Error('forbidden')
-      return { reply: existing, quota: await this.quota(input.userId) }
+      return { reply: existing, quota: await this.quota(input.userId), degraded: false }
     }
 
-    // freemium gate — throws QuotaExceededError (metered as paywall_hit)
-    const claims = await this.entitlements.claimsFor(input.userId)
-    const quota = await this.metering.recordAskOrThrow({
-      id: input.askId,
-      userId: input.userId,
-      limit: claims.limits.asksPerWeek,
-      meta: { mode: input.mode },
-    })
+    // ── THE GATE: no authorized seat, no service ─────────────────────
+    const live = await this.seats.activeSeatFor(input.userId)
+    if (!live) throw new SeatRequiredError()
+    const { monthlyAiCalls } = this.seats.quotaFor(live)
 
     const dna = await this.loadDna(input.userId, input.dnaId)
     const normalizedHash = sha256Hex(this.normalize(input.question) + '|' + (dna?.id ?? ''))
 
-    // cache rung: an identical grounded question is answered for free
+    // cache rung: identical grounded questions are answered for free — and
+    // remain available even when the seat is over its monthly quota
     const cached = await this.db.coachReply.findFirst({
       where: { normalizedHash, dnaProfileId: dna?.id ?? null },
       orderBy: { createdAt: 'desc' },
     })
+    const quotaNow = await this.metering.quotaState(input.userId, 'ai_call', monthlyAiCalls)
+    const overQuota = quotaNow.limit !== null && quotaNow.used >= quotaNow.limit
+
     if (cached) {
-      const reply = await this.db.coachReply.create({
-        data: {
-          id: newUlid(),
-          askId: input.askId,
-          userId: input.userId,
-          dnaProfileId: dna?.id ?? null,
-          mode: input.mode,
-          question: input.question,
-          normalizedHash,
-          answer: cached.answer,
-          costTier: 'cached',
-          model: cached.model,
-        },
+      const reply = await this.storeReply({
+        ...input,
+        dnaProfileId: dna?.id ?? null,
+        normalizedHash,
+        answer: cached.answer,
+        costTier: 'cached',
+        model: cached.model,
       })
-      return { reply, quota }
+      return { reply, quota: quotaNow, degraded: overQuota }
     }
+
+    // cache miss: consuming a credit is the only path to the model —
+    // this throws (and audits a quota_block) when the seat is exhausted
+    const quota = await this.metering.recordAiCallOrThrow({
+      id: input.askId,
+      userId: input.userId,
+      limit: monthlyAiCalls,
+      meta: { mode: input.mode, licenseId: live.license.id },
+    })
 
     const short = input.mode === 'sms' || input.mode === 'ussd'
     const tier = this.routeTier(input.question, short)
@@ -89,31 +101,57 @@ export class CoachService {
     })
 
     const answer = short ? completion.text.slice(0, SMS_MAX_CHARS) : completion.text
-    const reply = await this.db.coachReply.create({
+    const reply = await this.storeReply({
+      ...input,
+      dnaProfileId: dna?.id ?? null,
+      normalizedHash,
+      answer,
+      costTier: tier,
+      model: completion.model,
+      inputTokens: completion.inputTokens,
+      outputTokens: completion.outputTokens,
+    })
+    return { reply, quota, degraded: false }
+  }
+
+  async quota(userId: string) {
+    const live = await this.seats.activeSeatFor(userId)
+    const limit = live ? this.seats.quotaFor(live).monthlyAiCalls : 0
+    return this.metering.quotaState(userId, 'ai_call', limit)
+  }
+
+  // ── internals ──────────────────────────────────────────────────────
+
+  private async storeReply(input: {
+    askId: string
+    userId: string
+    dnaProfileId: string | null
+    mode: AskMode
+    question: string
+    normalizedHash: string
+    answer: string
+    costTier: string
+    model: string
+    inputTokens?: number
+    outputTokens?: number
+  }) {
+    return this.db.coachReply.create({
       data: {
         id: newUlid(),
         askId: input.askId,
         userId: input.userId,
-        dnaProfileId: dna?.id ?? null,
+        dnaProfileId: input.dnaProfileId,
         mode: input.mode,
         question: input.question,
-        normalizedHash,
-        answer,
-        costTier: tier,
-        model: completion.model,
-        inputTokens: completion.inputTokens,
-        outputTokens: completion.outputTokens,
+        normalizedHash: input.normalizedHash,
+        answer: input.answer,
+        costTier: input.costTier,
+        model: input.model,
+        inputTokens: input.inputTokens ?? 0,
+        outputTokens: input.outputTokens ?? 0,
       },
     })
-    return { reply, quota }
   }
-
-  async quota(userId: string) {
-    const claims = await this.entitlements.claimsFor(userId)
-    return this.metering.askQuota(userId, claims.limits.asksPerWeek)
-  }
-
-  // ── internals ──────────────────────────────────────────────────────
 
   private normalize(question: string): string {
     return question
