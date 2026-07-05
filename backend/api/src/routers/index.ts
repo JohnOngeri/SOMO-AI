@@ -3,6 +3,7 @@ import { authRouter } from './auth'
 import { billingRouter } from './billing'
 import { dnaRouter } from './dna'
 import { entitlementsRouter } from './entitlements'
+import { marketplaceRouter } from './marketplace'
 import { meRouter } from './me'
 import { meteringRouter } from './metering'
 import { packsRouter } from './packs'
@@ -17,6 +18,7 @@ export const appRouter = router({
   entitlements: entitlementsRouter,
   metering: meteringRouter,
   billing: billingRouter,
+  marketplace: marketplaceRouter,
 })
 
 export type AppRouter = typeof appRouter

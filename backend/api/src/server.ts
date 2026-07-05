@@ -7,6 +7,7 @@ import { OtpService } from './auth/otp'
 import { TokenService } from './auth/tokens'
 import { BillingService } from './billing/service'
 import { EntitlementService } from './entitlements/service'
+import { MarketplaceService } from './marketplace/service'
 import { type Env, loadEnv } from './env'
 import { MeteringService } from './metering/service'
 import { PackService, type SigningKeys } from './packs/service'
@@ -60,6 +61,7 @@ export function buildServices(opts: BuildOptions = {}): Services {
   )
   const payments = opts.payments ?? new SandboxPaymentProvider()
   const metering = new MeteringService(db)
+  const marketplace = new MarketplaceService(db, payments)
   return {
     db,
     env,
@@ -72,7 +74,10 @@ export function buildServices(opts: BuildOptions = {}): Services {
     packs: new PackService(db, store, packKeys),
     entitlements: new EntitlementService(db, entitlementKeys),
     metering,
-    billing: new BillingService(db, payments, metering),
+    marketplace,
+    billing: new BillingService(db, payments, metering, {
+      marketplaceChargeSucceeded: (ref) => marketplace.completeSaleForCharge(ref),
+    }),
   }
 }
 
@@ -97,7 +102,8 @@ export async function buildServer(opts: BuildOptions = {}): Promise<FastifyInsta
     if (!row || row.status !== 'live') return reply.code(404).send({ error: 'not_found' })
     if (row.priceAmountMinor > 0) {
       const claims = await services.entitlements.claimsFor(auth.sub)
-      if (claims.packs !== 'all_standard') {
+      const owned = await services.marketplace.hasGrant(auth.sub, row.id)
+      if (claims.packs !== 'all_standard' && !owned) {
         return reply.code(402).send({ error: 'payment_required' })
       }
     }
