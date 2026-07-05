@@ -2,8 +2,11 @@
  * Dev seed: one teacher with a Class DNA profile and a day of reflections,
  * so `pnpm dev` starts with a living app. Run: pnpm --filter @somo/api seed
  */
+import { generateEd25519Keypair } from '@somo/packsign'
 import { createDb } from '../src/db'
 import { newUlid } from '../src/ids'
+import { PackService } from '../src/packs/service'
+import { FsObjectStore } from '../src/storage'
 
 const db = createDb(process.env.DATABASE_URL ?? 'postgresql://somo:somo@localhost:5432/somo')
 
@@ -70,6 +73,46 @@ async function main() {
         capturedAt: new Date(),
       },
     })
+  }
+
+  // one free signed demo pack so Today/Packs render on first boot
+  if (!(await db.pack.findUnique({ where: { slug: 'numeracy-foundations-term-1' } }))) {
+    const keys =
+      process.env.PACK_SIGNING_PRIVATE_KEY && process.env.PACK_SIGNING_PUBLIC_KEY
+        ? {
+            publicKeyId: 'somo-root',
+            privateKey: process.env.PACK_SIGNING_PRIVATE_KEY,
+            publicKey: process.env.PACK_SIGNING_PUBLIC_KEY,
+          }
+        : { publicKeyId: 'somo-dev-ephemeral', ...generateEd25519Keypair() }
+    const packs = new PackService(
+      db,
+      new FsObjectStore(process.env.PACKS_STORAGE_DIR ?? './storage'),
+      keys,
+    )
+    await packs.publish({
+      slug: 'numeracy-foundations-term-1',
+      title: 'Numeracy Foundations — Term 1',
+      subject: 'Mathematics',
+      gradeLevels: ['P3', 'P4'],
+      locale: 'en',
+      version: '1.0.0',
+      publisherId: teacher.id,
+      lessons: [
+        { index: 0, title: 'Counting with what you have', minutes: 30 },
+        { index: 1, title: 'Place value with bottle tops', minutes: 35 },
+        { index: 2, title: 'Number stories out loud', minutes: 30 },
+      ],
+      priceAmountMinor: 0,
+      priceCurrency: 'KES',
+      archive: Buffer.from(
+        JSON.stringify({
+          format: 'somopack/1',
+          note: 'demo archive — real packs ship lesson JSON + audio',
+        }),
+      ),
+    })
+    console.log('seeded demo pack numeracy-foundations-term-1')
   }
 
   console.log(`seeded teacher ${teacher.phone} (${teacher.id})`)

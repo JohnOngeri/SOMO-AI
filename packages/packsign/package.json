@@ -1,0 +1,21 @@
+{
+  "name": "@somo/packsign",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "ed25519 signing + verification for SOMO lesson packs and entitlement tokens. Deterministic canonical JSON so server and device always hash the same bytes.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@somo/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@somo/config": "workspace:*",
+    "@types/node": "^26.1.0"
+  }
+}

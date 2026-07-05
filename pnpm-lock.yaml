@@ -44,6 +44,9 @@ importers:
       '@somo/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
+      '@somo/packsign':
+        specifier: workspace:*
+        version: link:../../packages/packsign
       '@somo/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -92,6 +95,19 @@ importers:
       '@somo/config':
         specifier: workspace:*
         version: link:../config
+
+  packages/packsign:
+    dependencies:
+      '@somo/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@somo/config':
+        specifier: workspace:*
+        version: link:../config
+      '@types/node':
+        specifier: ^26.1.0
+        version: 26.1.0
 
   packages/payments:
     dependencies:

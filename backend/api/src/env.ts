@@ -10,6 +10,10 @@ const envSchema = z.object({
   OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
+  /** base64 DER ed25519 keys; when absent outside production an ephemeral pair is generated */
+  PACK_SIGNING_PRIVATE_KEY: z.string().optional(),
+  PACK_SIGNING_PUBLIC_KEY: z.string().optional(),
+  PACKS_STORAGE_DIR: z.string().default('./storage'),
 })
 
 export type Env = z.infer<typeof envSchema>
