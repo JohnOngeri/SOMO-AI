@@ -1,0 +1,463 @@
+/* ── SOMO Console — "field ledger" design language ─────────────────────
+   Built on the @somo/ui tokens (cream paper, clay, teal) but composed for
+   the BUYER: calm, printed-report confidence. Big Familjen numerals, ruled
+   paper surfaces, chart marks in validated chart variants of the brand hues
+   (teal #0f7a5c / clay #c44d2e — status colors always travel with a label). */
+
+:root {
+  --bg: #f3ede1;
+  --paper: #ebe1cf;
+  --card: #faf6ec;
+  --ink: #15110d;
+  --ink-soft: #5b5345;
+  --ink-faint: #948869;
+  --clay: #c44d2e;
+  --clay-deep: #8a3520;
+  --teal: #2a5d4f;
+  --teal-chart: #0f7a5c;
+  --teal-soft: #d6e3dd;
+  --amber-soft: #f1e4be;
+  --line: #d8ccb0;
+  --line-strong: #a89773;
+  --night: #2a2620;
+  --ok: #2a6f3e;
+  --warn: #b8520a;
+  --r-sm: 6px;
+  --r: 12px;
+  --r-lg: 18px;
+  --display: 'Familjen Grotesk', 'Avenir Next', system-ui, sans-serif;
+  --body: 'Public Sans', 'Helvetica Neue', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ruled-paper texture under the header */
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  background: var(--night);
+  color: var(--bg);
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 0 28px;
+  height: 58px;
+}
+
+.topbar .wordmark {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: 0.02em;
+  color: var(--bg);
+}
+
+.topbar .wordmark span {
+  color: #e8a18a;
+}
+
+.topbar nav {
+  display: flex;
+  gap: 4px;
+  margin-left: 12px;
+}
+
+.topbar nav a {
+  color: #cfc6b2;
+  text-decoration: none;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.topbar nav a.active,
+.topbar nav a:hover {
+  background: rgba(243, 237, 225, 0.12);
+  color: var(--bg);
+}
+
+.topbar .who {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: #cfc6b2;
+}
+
+main {
+  max-width: 1080px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 32px 28px 80px;
+}
+
+h1 {
+  font-family: var(--display);
+  font-size: 30px;
+  margin: 0 0 4px;
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  font-family: var(--display);
+  font-size: 19px;
+  margin: 36px 0 12px;
+}
+
+.sub {
+  color: var(--ink-soft);
+  margin: 0 0 28px;
+}
+
+/* ── cards + stat tiles ── */
+.grid {
+  display: grid;
+  gap: 16px;
+}
+
+.grid.cols-4 {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 18px 20px;
+}
+
+.stat .label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+  font-family: var(--mono);
+}
+
+.stat .value {
+  font-family: var(--display);
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat .hint {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+/* ── tables ── */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+
+th {
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+  font-weight: 500;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+
+tr:last-child td {
+  border-bottom: none;
+}
+
+tr:hover td {
+  background: rgba(42, 93, 79, 0.05);
+}
+
+/* ── status chips: color + TEXT, never color alone ── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-family: var(--mono);
+  letter-spacing: 0.03em;
+}
+
+.chip::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.chip.active {
+  background: var(--teal-soft);
+  color: #1c4a3e;
+}
+
+.chip.unclaimed {
+  background: #e7dfcc;
+  color: #5b5345;
+}
+
+.chip.revoked {
+  background: #f2d5cb;
+  color: var(--clay-deep);
+}
+
+/* ── buttons + inputs ── */
+button,
+.btn {
+  font: inherit;
+  font-family: var(--display);
+  font-weight: 600;
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 22px;
+  min-height: 44px;
+  cursor: pointer;
+  background: var(--clay);
+  color: #fff;
+}
+
+button:hover {
+  background: var(--clay-deep);
+}
+
+button.ghost {
+  background: transparent;
+  border: 1.5px solid var(--line-strong);
+  color: var(--ink);
+}
+
+button.ghost:hover {
+  background: var(--paper);
+}
+
+button.small {
+  min-height: 34px;
+  padding: 5px 14px;
+  font-size: 13px;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+input,
+textarea {
+  font: inherit;
+  background: #fff;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  padding: 11px 14px;
+  min-height: 44px;
+  width: 100%;
+}
+
+input:focus,
+textarea:focus {
+  outline: 3px solid rgba(42, 93, 79, 0.35);
+  border-color: var(--teal);
+}
+
+label {
+  display: block;
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 14px 0 5px;
+}
+
+.error {
+  background: #f2d5cb;
+  color: var(--clay-deep);
+  border-radius: var(--r-sm);
+  padding: 10px 14px;
+  margin-top: 12px;
+}
+
+/* ── login ── */
+.login-wrap {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(1200px 500px at 20% -10%, rgba(42, 93, 79, 0.12), transparent), var(--bg);
+}
+
+.login-card {
+  width: min(420px, calc(100vw - 40px));
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 36px;
+}
+
+.login-card .brand {
+  font-family: var(--display);
+  font-size: 34px;
+  font-weight: 700;
+}
+
+.login-card .brand span {
+  color: var(--clay);
+}
+
+/* ── spend meter (single-hue sequential, direct-labeled) ── */
+.meter-block {
+  margin: 8px 0 4px;
+}
+
+.meter-legend {
+  display: flex;
+  gap: 18px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.meter-legend .key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.meter-legend .swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+/* ── PIN sheet (screen preview + print) ── */
+.pin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.pin-card {
+  border: 1.5px dashed var(--line-strong);
+  border-radius: var(--r);
+  padding: 16px;
+  background: #fff;
+  page-break-inside: avoid;
+}
+
+.pin-card .org {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+}
+
+.pin-card .teacher {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 16px;
+  margin: 6px 0 2px;
+  min-height: 20px;
+}
+
+.pin-card .pin {
+  font-family: var(--mono);
+  font-size: 24px;
+  letter-spacing: 0.12em;
+  color: var(--clay-deep);
+  margin: 8px 0;
+}
+
+.pin-card .how {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+
+.print-note {
+  font-size: 13px;
+  color: var(--warn);
+  margin-top: 10px;
+}
+
+@media print {
+  .topbar,
+  .no-print,
+  button {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+  main {
+    padding: 0;
+    max-width: none;
+  }
+  .pin-card {
+    border-color: #999;
+  }
+}
+
+/* modal-lite */
+.sheet {
+  border: 1px solid var(--line-strong);
+  background: var(--card);
+  border-radius: var(--r-lg);
+  padding: 24px;
+  margin-top: 16px;
+}
+
+.row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.row > * {
+  flex: 1;
+  min-width: 140px;
+}
+
+.muted {
+  color: var(--ink-faint);
+  font-size: 13px;
+}
+
+.mono {
+  font-family: var(--mono);
+}
