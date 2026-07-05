@@ -16,6 +16,8 @@ model User {
   displayName String?
   locale      String   @default("en")
   role        String   @default("teacher") // teacher | creator | org_admin | somo_admin
+  plan        String   @default("free") // free | plus | org_seat (written by billing from phase 5)
+  plusUntil   DateTime? // covers paid periods, trials, and referral reward days
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -25,6 +27,7 @@ model User {
   reflections   ReflectionEntry[]
   synthesisCards SynthesisCard[]
   settings      UserSettings?
+  usageEvents   UsageEvent[]
 }
 
 model UserSettings {
@@ -168,4 +171,22 @@ model Pack {
   createdAt        DateTime @default(now())
 
   @@index([status, subject])
+}
+
+// ── Entitlements + metering ───────────────────────────────────────────
+
+// Plan state lives on the user until the billing service (phase 5) takes
+// over as the writer. plusUntil covers trials + referral credit days too.
+// (columns added to User below via migration of the model)
+
+model UsageEvent {
+  id     String   @id // client ULID -> idempotent offline replay
+  userId String
+  type   String
+  at     DateTime
+  meta   Json     @default("{}")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, at])
 }

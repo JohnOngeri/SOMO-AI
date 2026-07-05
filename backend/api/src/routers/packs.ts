@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { currency, locale, packLesson, semver, ulid } from '@somo/types'
+import { newUlid } from '../ids'
 import { authedProcedure, publicProcedure, router } from '../trpc'
 
 const publishInput = z.object({
@@ -52,18 +53,42 @@ export const packsRouter = router({
   }),
 
   /**
-   * Free packs download immediately; paid packs require an entitlement
-   * (enforced properly in Phase 4 — until then they 402).
+   * Entitlement-gated download. Paid packs need Plus/org (all_standard grant);
+   * the free tier's active-pack limit is enforced here and every block is
+   * metered as a paywall_hit — that's the conversion funnel's raw data.
    */
   download: authedProcedure.input(z.object({ id: ulid })).mutation(async ({ ctx, input }) => {
     const row = await ctx.db.pack.findUnique({ where: { id: input.id } })
     if (!row || row.status !== 'live') throw new TRPCError({ code: 'NOT_FOUND' })
-    if (row.priceAmountMinor > 0) {
+
+    const claims = await ctx.entitlements.claimsFor(ctx.auth.sub)
+    if (row.priceAmountMinor > 0 && claims.packs !== 'all_standard') {
       throw new TRPCError({
         code: 'PAYMENT_REQUIRED',
         message: 'pack requires purchase or SOMO Plus',
       })
     }
+
+    if (claims.limits.maxActivePacks !== null) {
+      const installed = await ctx.metering.distinctInstalledPacks(ctx.auth.sub)
+      if (!installed.includes(row.id) && installed.length >= claims.limits.maxActivePacks) {
+        await ctx.metering.record({
+          id: newUlid(),
+          userId: ctx.auth.sub,
+          type: 'paywall_hit',
+          meta: { reason: 'pack_limit', packId: row.id },
+        })
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'pack_limit_reached' })
+      }
+    }
+
+    await ctx.metering.record({
+      id: newUlid(),
+      userId: ctx.auth.sub,
+      type: 'pack_install',
+      meta: { packId: row.id },
+    })
+
     return {
       ...ctx.packs.toSignedManifest(row),
       archivePath: `/packs/${row.id}/archive`,

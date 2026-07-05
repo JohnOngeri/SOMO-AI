@@ -13,6 +13,8 @@ const envSchema = z.object({
   /** base64 DER ed25519 keys; when absent outside production an ephemeral pair is generated */
   PACK_SIGNING_PRIVATE_KEY: z.string().optional(),
   PACK_SIGNING_PUBLIC_KEY: z.string().optional(),
+  ENTITLEMENT_SIGNING_PRIVATE_KEY: z.string().optional(),
+  ENTITLEMENT_SIGNING_PUBLIC_KEY: z.string().optional(),
   PACKS_STORAGE_DIR: z.string().default('./storage'),
 })
 

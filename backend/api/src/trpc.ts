@@ -3,6 +3,8 @@ import type { PrismaClient } from './db'
 import type { Env } from './env'
 import type { OtpService } from './auth/otp'
 import type { TokenService, AccessClaims } from './auth/tokens'
+import type { EntitlementService } from './entitlements/service'
+import type { MeteringService } from './metering/service'
 import type { PackService, SigningKeys } from './packs/service'
 import type { SmsSender } from './sms'
 import type { ObjectStore } from './storage'
@@ -16,6 +18,8 @@ export interface Services {
   store: ObjectStore
   packs: PackService
   packKeys: SigningKeys
+  entitlements: EntitlementService
+  metering: MeteringService
 }
 
 export interface Context extends Services {
