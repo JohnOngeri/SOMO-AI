@@ -5,6 +5,8 @@ import type { OtpService } from './auth/otp'
 import type { TokenService, AccessClaims } from './auth/tokens'
 import type { PaymentProvider } from '@somo/payments'
 import type { BillingService } from './billing/service'
+import type { AiProvider } from './coach/provider'
+import type { CoachService } from './coach/service'
 import type { EntitlementService } from './entitlements/service'
 import type { MarketplaceService } from './marketplace/service'
 import type { MeteringService } from './metering/service'
@@ -26,6 +28,8 @@ export interface Services {
   payments: PaymentProvider
   billing: BillingService
   marketplace: MarketplaceService
+  ai: AiProvider
+  coach: CoachService
 }
 
 export interface Context extends Services {
