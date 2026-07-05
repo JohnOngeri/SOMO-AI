@@ -3,14 +3,16 @@ import { createTRPCClient, httpBatchLink } from '@trpc/client'
 import { createDb, type PrismaClient } from '../src/db'
 import { loadEnv } from '../src/env'
 import type { AppRouter } from '../src/routers/index'
-import { buildServer } from '../src/server'
+import { buildServer, buildServices } from '../src/server'
 import { MemorySmsSender } from '../src/sms'
 import { newUlid } from '../src/ids'
+import type { Services } from '../src/trpc'
 
 export interface TestApp {
   app: FastifyInstance
   db: PrismaClient
   sms: MemorySmsSender
+  services: Services
   url: string
   client: (accessToken?: string) => ReturnType<typeof createTRPCClient<AppRouter>>
   close: () => Promise<void>
@@ -20,7 +22,8 @@ export async function startTestApp(): Promise<TestApp> {
   const env = loadEnv()
   const db = createDb(env.DATABASE_URL)
   const sms = new MemorySmsSender()
-  const app = await buildServer({ env, db, sms })
+  const services = buildServices({ env, db, sms })
+  const app = await buildServer({ services })
   await app.listen({ port: 0, host: '127.0.0.1' })
   const address = app.server.address()
   if (!address || typeof address === 'string') throw new Error('no address')
@@ -30,6 +33,7 @@ export async function startTestApp(): Promise<TestApp> {
     app,
     db,
     sms,
+    services,
     url,
     client: (accessToken) =>
       createTRPCClient<AppRouter>({
@@ -48,7 +52,7 @@ export async function startTestApp(): Promise<TestApp> {
 
 export async function resetDb(db: PrismaClient): Promise<void> {
   await db.$executeRawUnsafe(
-    'TRUNCATE "User", "UserSettings", "OtpChallenge", "Device", "RefreshToken", "ClassDnaProfile", "DnaResponse", "ReflectionEntry", "SynthesisCard", "Pack" CASCADE',
+    'TRUNCATE "User", "UserSettings", "OtpChallenge", "Device", "RefreshToken", "ClassDnaProfile", "DnaResponse", "ReflectionEntry", "SynthesisCard", "Pack", "UsageEvent" CASCADE',
   )
 }
 
