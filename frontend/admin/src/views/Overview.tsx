@@ -96,7 +96,10 @@ export function Overview({ api, onAuthFailure }: { api: Api; onAuthFailure: () =
                 <a href={`#/license/${l.id}`} style={{ marginRight: 12 }}>
                   Seats
                 </a>
-                <a href={`#/costs/${l.id}`}>Costs</a>
+                <a href={`#/costs/${l.id}`} style={{ marginRight: 12 }}>
+                  Costs
+                </a>
+                <a href={`#/roi/${l.id}`}>Impact &amp; ROI</a>
               </td>
             </tr>
           ))}

@@ -111,4 +111,13 @@ export const adminRouter = router({
       rethrow(e)
     }
   }),
+
+  /** Impact & ROI — the per-term report institutional buyers renew on. */
+  roi: adminProcedure.input(z.object({ licenseId: ulid })).query(async ({ ctx, input }) => {
+    try {
+      return await ctx.roi.report(ctx.adminIdentity, input.licenseId)
+    } catch (e) {
+      rethrow(e)
+    }
+  }),
 })

@@ -4,6 +4,7 @@ import { Costs } from './views/Costs'
 import { License } from './views/License'
 import { Login } from './views/Login'
 import { Overview } from './views/Overview'
+import { Roi } from './views/Roi'
 
 function useHashRoute(): string {
   const [hash, setHash] = useState(window.location.hash || '#/')
@@ -39,6 +40,7 @@ export function App() {
 
   const licenseMatch = route.match(/^#\/license\/([0-9A-Z]+)$/)
   const costsMatch = route.match(/^#\/costs\/([0-9A-Z]+)$/)
+  const roiMatch = route.match(/^#\/roi\/([0-9A-Z]+)$/)
 
   return (
     <div className="shell">
@@ -63,6 +65,8 @@ export function App() {
           <License api={api} licenseId={licenseMatch[1]!} />
         ) : costsMatch ? (
           <Costs api={api} licenseId={costsMatch[1]!} />
+        ) : roiMatch ? (
+          <Roi api={api} licenseId={roiMatch[1]!} />
         ) : (
           <Overview api={api} onAuthFailure={logout} />
         )}
