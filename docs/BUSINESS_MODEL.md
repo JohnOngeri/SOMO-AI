@@ -1,103 +1,84 @@
-# SOMO Business Model
+# SOMO Business Model — B2B / B2G
 
-> Living document. Assumptions below are launch hypotheses; the internal revenue dashboard (Phase 12) computes the same model from **live** metrics, and this doc gets updated as real numbers arrive.
->
-> Goal: **default-alive within 12 months** — gross monthly revenue covers infrastructure + core team burn.
+> Living document, rewritten 2026-07 for the enterprise pivot. The previous freemium model is retired (see "What changed" at the end). Pricing below mirrors `backend/api/src/billing/pricing.ts` — the config file is the source of truth; this doc explains it.
 
-## 1. Revenue streams
+## The one-sentence model
 
-### A. Freemium consumer (B2C)
+**The teacher never pays; their employer or sponsor does — per seat, per term — and every seat carries a hard monthly usage quota, so SOMO's variable cost is capped by construction and the buyer's spend is predictable to the call.**
 
-| Tier           | Price                                                                                                                 | Includes                                                                            |
-| -------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| **Free**       | $0                                                                                                                    | DNA Sprint, 3-Minute Mirror, **5 Ask Coach / week**, **1 active pack**, community   |
-| **SOMO Plus**  | local-currency equivalent of **$2/mo** (e.g. KES 260, NGN 3,000, TZS 5,200); **annual = 10× monthly** (2 months free) | unlimited Ask Coach, all standard packs, offline everything, priority voice, no ads |
-| **Plus trial** | 14 days free, no card required (phone-verified, one per number)                                                       | full Plus                                                                           |
+## Why we pivoted
 
-Payment rails: mobile money (M-Pesa, MTN MoMo, Airtel Money) via Flutterwave/Paystack, card, and airtime billing where available — all behind the `PaymentProvider` interface with a sandbox adapter for dev/test.
+Every SOMO user costs real money: LLM inference on each coach question, SMS/USSD fees on every gateway interaction, pack distribution bandwidth. A viral freemium teacher base means uncapped variable cost against ~$2/month consumer revenue with prepaid-market churn — growth would have been the failure mode. Institutions, by contrast, already pay far more than our seat price for the same job done worse: field mentors driving between schools.
 
-### B. B2B / B2B2C seat licensing — the revenue that carries fixed costs
+The engineering counterpart of this model is **fail-closed cost gating** (ADR-0009): no metered action — AI call, outbound SMS, USSD-triggered work, pack download — is ever served without an ACTIVE seat on an ACTIVE license with remaining quota. Spend cannot exceed `seats × quota × unit cost`. This invariant is enforced in one chokepoint per rail and proven by the `gating.test.ts` suite (zero provider invocations for unauthorized/over-quota users).
 
-Org buys N seats → admin portal (invite teachers, assign packs, cohort analytics, privacy-safe outcome metrics) + invoicing.
+## Who buys, and what they buy
 
-| Volume (seats) | Price / seat / year |
-| -------------- | ------------------- |
-| 1 – 100        | $15                 |
-| 101 – 1,000    | $10                 |
-| 1,001 – 10,000 | $7                  |
-| Ministry-scale | custom ($3–5)       |
+| Buyer                       | Example                                             | What they buy                                | Why                                                                           |
+| --------------------------- | --------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------- |
+| NGOs / teaching fellowships | Teach For All partners                              | Seats for their cohort + coordinator console | Displace field-mentor visits; faster new-teacher ramp                         |
+| Low-cost school networks    | Bridge-style, Nova Pioneer-style                    | Seats across their schools                   | Consistent teaching quality at chain scale, measurable coverage               |
+| Ministries of Education     | County/national pilots                              | Seats for a district or cadre                | Teacher support at a per-seat price no in-person program can match            |
+| Foundations / funders       | Program co-funding                                  | Seats on behalf of grantees + the ROI report | Auditable cost-per-outcome                                                    |
+| Insights licensees          | Ministries, USAID/World Bank, curriculum publishers | The **aggregated analytics subscription**    | Region-level curriculum-friction signal (k-anonymous; see DATA_GOVERNANCE.md) |
 
-In-product expansion trigger: when ≥5 teachers from one school are active, surface "bring your school onto SOMO" → routes into the B2B sales funnel.
+The teacher's experience is free, warm, offline-first, and unchanged except one step: entering a one-time **authorization PIN** from their coordinator's printed PIN sheet (app, USSD, or SMS).
 
-### C. Content marketplace (take-rate)
+## Revenue streams
 
-Verified publishers and expert teachers sell signed packs. **Platform fee: 25%** of each sale (creator keeps 75%). Payout ledger is double-entry and auditable; creators get an earnings dashboard and monthly mobile-money payouts (min threshold $10).
+### 1. Seat licenses (core revenue)
 
-### D. SMS/USSD micro-revenue + carrier deals
+Per seat, per term, tiered by buyer type with volume breaks (config: `pricing.ts`):
 
-Premium USSD coach sessions (carrier-billed, e.g. ~$0.02/session, telco revenue-share modelled at 60/40 telco-favoured) and zero-rating partnerships. Modelled in the billing layer from day one; specific telco integrations stubbed until contracts exist.
+| Tier             | Base $/seat/term | Volume breaks                |
+| ---------------- | ---------------- | ---------------------------- |
+| NGO / Fellowship | $15              | −10% ≥200 seats, −20% ≥1,000 |
+| School network   | $12              | −10% ≥500, −20% ≥2,500       |
+| Ministry         | $7               | −15% ≥5,000, −30% ≥20,000    |
+| Foundation       | $15              | −15% ≥500                    |
 
-### E. Grants & impact revenue (non-dilutive)
+Multi-currency invoicing via a coarse FX table (USD, KES, NGN, TZS, UGX, GHS, ZAR, XOF). Pipeline: **quote → order → invoice (INV-YYYY-NNNN) → payment → license auto-provisioned** with exactly the ordered seats. Payment rails: bank transfer (primary, `markPaid` with reference), card via the Stripe adapter, mobile money via the existing provider interface. Nothing is provisioned before money lands.
 
-Anonymized impact-metrics export (teacher retention, reflection depth, lesson-completion outcomes) in funder-ready format. Budgeted conservatively at **$50k in year 1** — treated as runway extension, never as the path to sustainability.
+Each license carries per-seat monthly quotas (defaults: 120 AI calls, 60 SMS; per-seat overrides available) — the quota is simultaneously the **cost ceiling for us** and the **budget line for them**, shown on the console cost dashboard as actual vs run-rate projection vs hard ceiling.
 
-## 2. Growth loops (built as product code)
+### 2. Insights subscription (data exhaust, licensed separately)
 
-| Loop       | Mechanism                                                                                         | Metric                  |
-| ---------- | ------------------------------------------------------------------------------------------------- | ----------------------- |
-| Referral   | Bluetooth/USB pack share carries a signed invite → new signup credits **both** users 14 Plus days | k-factor (target ≥ 0.4) |
-| Retention  | streaks, weekly community digest, leaderboards, re-engagement SMS                                 | D30 / W12 retention     |
-| Conversion | soft paywalls at natural limits (6th Ask, 2nd pack), trial, annual nudge                          | free→Plus conversion    |
-| Expansion  | school-cluster detection → B2B funnel                                                             | teacher→seat-deal rate  |
+Aggregated, k-anonymous curriculum-friction analytics: "top concepts teachers struggle to explain" by country/institution type/week, plus per-topic trends. Strictly governed (docs/DATA_GOVERNANCE.md): labels only, no transcripts, no identifiers, cells under K=5 distinct teachers suppressed. Priced as an annual subscription per licensee (target $10–50k/year depending on scope); gated by the `insights` role today.
 
-## 3. Funnel (every step instrumented)
+### 3. Content licensing (dormant, optional)
 
-install → signup (phone OTP) → DNA Sprint complete (activation) → first Ask → weekly habit (3+ active days) → paywall hit → trial start → **paid Plus** → (cluster) → **B2B seat deal**
+The signed-pack marketplace with its double-entry creator-payout ledger remains built and tested but unmounted from teacher surfaces. When institutions want third-party publisher content, packs are licensed institutionally and revenue-shared through the existing ledger (25% platform fee machinery already proven).
 
-## 4. Unit economics — launch assumptions
+## Unit economics
 
-| Variable                       | Assumption                       | Basis                                                  |
-| ------------------------------ | -------------------------------- | ------------------------------------------------------ |
-| Variable cost / MAU / month    | **$0.04–0.08**                   | small-model routing, caching, SMS, P2P distribution    |
-| CAC (teacher)                  | ~**$0.10**                       | teacher-to-teacher referral is the primary channel     |
-| Free → Plus conversion         | 3% of MAU                        | industry freemium range 2–5%, priced for market        |
-| Plus monthly churn             | 6%                               | prepaid-market norm; annual plans reduce blended churn |
-| B2B seat gross margin          | ~90%                             | seats are software + support                           |
-| Blended ARPU (paying)          | ~$1.9/mo B2C; ~$0.75/mo/seat B2B | pricing tables above                                   |
-| Fixed burn (infra + core team) | **$18k/mo**                      | 3-person core team (blended $5.5k) + $1.5k infra/tools |
+Per active seat per month, worst case at default quotas:
 
-## 5. 12-month break-even model
+- AI: 120 calls × ~$0.005 (Haiku-routed, cached tier free, quality tier rare) ≈ **$0.60 ceiling**, observed p50 far lower (cache + degraded-mode reuse)
+- SMS: 60 × $0.01 ≈ **$0.60 ceiling** (USSD replies ride the session channel at no per-message cost)
+- Everything else (storage, compute) amortizes to cents.
 
-Adoption ramp: 2k MAU at launch (M1), ~35% m/m growth cooling to ~15% by M12 → ~55k MAU. B2B: first pilot school M4, first network deal M7, first ministry pilot M10. Marketplace GMV starts M6.
+Ceiling variable cost ≈ **$1.20/seat/month ≈ $3.60/seat/term** against $7–15 seat revenue — a 48–76% worst-case gross margin that only improves because real usage sits well under quota and the cached tier is free. The console shows the same math to the buyer (unit costs are printed on their dashboard), which is itself a sales feature: no education vendor shows spend to the call.
 
-| Month | MAU    | Plus subs | B2C MRR | B2B seats | B2B MRR\* | Mkt fee | SMS  | **Revenue** | Burn | Net        |
-| ----- | ------ | --------- | ------- | --------- | --------- | ------- | ---- | ----------- | ---- | ---------- |
-| 1     | 2,000  | 30        | $60     | 0         | $0        | $0      | $0   | **$60**     | $18k | −$17.9k    |
-| 2     | 2,700  | 55        | $110    | 0         | $0        | $0      | $0   | **$110**    | $18k | −$17.9k    |
-| 3     | 3,600  | 95        | $190    | 0         | $0        | $0      | $10  | **$200**    | $18k | −$17.8k    |
-| 4     | 4,900  | 150       | $300    | 300       | $310      | $0      | $20  | **$630**    | $18k | −$17.4k    |
-| 5     | 6,600  | 215       | $430    | 300       | $310      | $0      | $30  | **$770**    | $18k | −$17.2k    |
-| 6     | 8,900  | 300       | $600    | 800       | $780      | $150    | $50  | **$1.6k**   | $19k | −$17.4k    |
-| 7     | 12,000 | 420       | $840    | 2,300     | $2.1k     | $300    | $80  | **$3.3k**   | $19k | −$15.7k    |
-| 8     | 16,000 | 570       | $1.1k   | 3,300     | $3.0k     | $500    | $120 | **$4.7k**   | $19k | −$14.3k    |
-| 9     | 21,000 | 760       | $1.5k   | 5,300     | $4.6k     | $800    | $170 | **$7.1k**   | $20k | −$12.9k    |
-| 10    | 27,000 | 990       | $2.0k   | 9,300     | $7.4k     | $1.2k   | $230 | **$10.8k**  | $20k | −$9.2k     |
-| 11    | 34,000 | 1,270     | $2.5k   | 15,300    | $11.4k    | $1.7k   | $300 | **$15.9k**  | $21k | −$5.1k     |
-| 12    | 43,000 | 1,600     | $3.2k   | 23,300    | $16.4k    | $2.3k   | $390 | **$22.3k**  | $21k | **+$1.3k** |
+## The sales motion (land → prove → expand)
 
-\* B2B MRR = seats × blended $10.5/seat/yr ÷ 12, ramping toward volume tiers. Burn grows slightly with support + infra scale. Grant income ($50k y1) extends runway but is excluded from the break-even line by design.
+1. **Land**: 15–50 seat paid pilot, one term (seeded demo mirrors this: "Teach For All — Kenya Pilot").
+2. **Prove**: the console's **Impact & ROI report** is the renewal engine — mentor visits displaced (interactions ÷ 8), field hours and $ saved vs seat cost, time-to-competency cohort curve, weekly coverage. Every figure traces to the metered ledger; assumptions are printed and tunable per account.
+3. **Expand**: network-wide or district-wide renewal at volume-break pricing; ministry deals anchor on the $7 tier.
+4. **Layer**: insights subscriptions to ministries/funders ride on aggregate scale and are near-pure margin.
 
-**Break-even: month 12** on subscription + licensing revenue. Cumulative net burn to break-even ≈ **$164k** (covered by grants + pre-seed). The two levers that matter most, in order: (1) landing B2B seat deals on schedule — B2B is ~73% of M12 revenue; (2) keeping variable cost/MAU ≤ $0.08 so gross margin stays >85%.
+## Path to self-sustainability (12 months)
 
-**Sensitivity:** if B2B slips 3 months, break-even moves to ~M15 and required runway to ~$220k. If free→Plus conversion is 2% instead of 3%, B2C MRR drops ~33% but break-even still lands M12–13 because B2B dominates. The Phase 12 dashboard computes **months-to-break-even from live metrics** using exactly this model.
+Fixed burn target: ~$18–21k/month (3-person core team + infra). Break-even requires roughly **1,400–2,600 paid seats per term** depending on tier mix (e.g. 2,000 network-tier seats × $12 × 3 terms/year ≈ $72k/year… illustrative mid-case: 4,000 blended seats ≈ $40k/term ≈ $13k/month) plus 2–3 insights licenses (~$4–8k/month amortized). Concretely:
 
-## 6. Cost discipline (protecting margin)
+| Milestone | Seats under license      | Monthly revenue (blended $11/seat/term ÷ 4 mo) | Note                            |
+| --------- | ------------------------ | ---------------------------------------------- | ------------------------------- |
+| M3        | 300 (2 pilots)           | ~$0.8k                                         | pilots prove the ROI report     |
+| M6        | 1,500 (first network)    | ~$4k                                           | first renewal on ROI evidence   |
+| M9        | 4,500 (+ ministry pilot) | ~$12k                                          | + first insights license        |
+| M12       | 8,000                    | ~$22k + insights                               | **default-alive** at ~$21k burn |
 
-- Cost-aware AI routing: cached/templated answers → small model → quality model only when needed; target ≤ $0.03 AI cost/MAU/month.
-- SMS instead of data where possible; USSD sessions are telco-cost, revenue-shared.
-- Peer-to-peer pack distribution = near-zero bandwidth + near-zero CAC.
-- Report **cost per active user** monthly on the internal dashboard; alert if > $0.10.
+The levers, in order: (1) renewal rate — a function of the ROI report being true; (2) ministry-tier volume; (3) insights attach rate. Variable cost is not a lever because it is capped by design.
 
-## 7. Decisions log
+## What changed from the freemium model (v1 of this doc)
 
-Pricing and fee choices above are recorded as ADRs when implemented (billing Phase 5, marketplace Phase 6). Ambiguities are resolved with a reasonable choice + ADR, not a stall.
+Retired: consumer SOMO Plus subscriptions, trials/coupons/dunning as a consumer flow, airtime upgrades, teacher pack purchases, the Bluetooth referral-reward loop (peer pack sharing remains as zero-cost distribution, minus the Plus-days incentive), and k-factor/ARPU/churn as primary metrics. The operative metrics are now: **seats licensed, seat claim rate, weekly coverage %, quota utilization, renewal rate, cost per seat, and insights ARR.** The old consumer billing machinery survives as internal plumbing (charge audit, webhooks, refunds) reused by B2B invoicing and the dormant marketplace.
