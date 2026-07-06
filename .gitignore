@@ -49,3 +49,6 @@ backend/api/src/generated/
 
 # local pack object storage (FsObjectStore)
 backend/api/storage/
+
+# embedded dev postgres (pnpm dev:all)
+backend/api/.pgdata-dev/
