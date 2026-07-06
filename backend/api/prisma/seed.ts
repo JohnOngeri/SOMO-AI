@@ -1,95 +1,251 @@
 /**
- * Dev seed: one teacher with a Class DNA profile and a day of reflections,
- * so `pnpm dev` starts with a living app. Run: pnpm --filter @somo/api seed
+ * Demo seed for the B2B pivot: two buyer-type institutions with licenses,
+ * PIN'd seats, staggered teacher activity (so the console, cost, ROI and
+ * insights dashboards all render), plus a fixed demo PIN for walkthroughs.
+ *
+ *   pnpm --filter @somo/api db:push && pnpm --filter @somo/api seed
+ *
+ * Demo logins (phone OTP codes print to the API console in dev):
+ *   SOMO staff   : +254700000100  (sales + insights)
+ *   TFA HQ admin : +254700000001  (console: Teach For All pilot)
+ *   Umoja HQ     : +254700000011  (console: Bridge-style school network)
+ *   Teacher PIN  : TEST-SEAT      (unclaimed seat on the TFA license)
  */
 import { generateEd25519Keypair } from '@somo/packsign'
 import { createDb } from '../src/db'
+import { loadEnv } from '../src/env'
 import { newUlid } from '../src/ids'
+import { AnalyticsService } from '../src/analytics/service'
+import { AdminService } from '../src/admin/service'
+import { SalesService } from '../src/billing/sales'
 import { PackService } from '../src/packs/service'
+import { SeatService } from '../src/seats/service'
 import { FsObjectStore } from '../src/storage'
 
-const db = createDb(process.env.DATABASE_URL ?? 'postgresql://somo:somo@localhost:5432/somo')
+const DAY = 86_400_000
+const env = loadEnv({
+  DATABASE_URL: process.env.DATABASE_URL ?? 'postgresql://somo:somo@localhost:5432/somo',
+})
+const db = createDb(env.DATABASE_URL)
+const seats = new SeatService(db, env)
+const admin = new AdminService(db, seats, env)
+const sales = new SalesService(db, seats)
+const analytics = new AnalyticsService(db, env)
 
-async function main() {
-  const teacher = await db.user.upsert({
-    where: { phone: '+254700123456' },
-    update: {},
-    create: {
-      id: newUlid(),
-      phone: '+254700123456',
-      displayName: 'Amina W.',
-      locale: 'sw',
-      settings: { create: { locale: 'sw' } },
-    },
+const QUESTIONS = [
+  'How do I explain fractions with no textbooks?',
+  'My learners confuse place value past one hundred',
+  'A warm-up game for a large class of 70 learners?',
+  'The class gets noisy after break, how do I refocus attention?',
+  'How do I check understanding without a written test?',
+  'Phonics blends for slow readers?',
+  'How do I keep quiet learners participating?',
+  'Times table drills that work with call-and-response?',
+]
+
+async function user(phone: string, displayName: string, role = 'teacher') {
+  return db.user.upsert({
+    where: { phone },
+    update: { role },
+    create: { id: newUlid(), phone, displayName, role, settings: { create: {} } },
+  })
+}
+
+async function seedTeacherActivity(
+  teacherId: string,
+  opts: { claimedDaysAgo: number; asks: number; reflections: number },
+) {
+  for (let i = 0; i < opts.asks; i++) {
+    const at = new Date(Date.now() - (opts.claimedDaysAgo - 1 - (i % opts.claimedDaysAgo)) * DAY)
+    await db.usageEvent.create({
+      data: { id: newUlid(), userId: teacherId, type: 'ai_call', at, meta: { mode: 'text' } },
+    })
+    await analytics.ingest({
+      userId: teacherId,
+      source: 'coach_question',
+      text: QUESTIONS[i % QUESTIONS.length]!,
+      at,
+    })
+  }
+  for (let i = 0; i < opts.reflections; i++) {
+    const at = new Date(Date.now() - (i % opts.claimedDaysAgo) * DAY)
+    await db.reflectionEntry
+      .create({
+        data: {
+          id: newUlid(),
+          userId: teacherId,
+          date: at.toISOString().slice(0, 10),
+          slot: ((i % 3) + 1) as number,
+          mode: 'voice',
+          transcript: 'The exit-question-first structure worked; quieter learners joined the game.',
+          capturedAt: at,
+        },
+      })
+      .catch(() => null) // same date+slot collisions are fine to skip
+    await analytics.ingest({
+      userId: teacherId,
+      source: 'reflection',
+      text: 'exit question assessment engaged the quiet learners',
+      at,
+    })
+  }
+}
+
+async function seedInstitution(config: {
+  name: string
+  type: string
+  country: string
+  hqPhone: string
+  coordinatorPhone: string
+  seatsPurchased: number
+  seatsToIssue: number
+  teachersToClaim: number
+  phonePrefix: string
+  viaSalesPipeline: boolean
+}) {
+  let institutionId: string
+  let licenseId: string
+
+  if (config.viaSalesPipeline) {
+    // exercise the real money pipeline: quote -> order -> invoice -> paid
+    const inst = await seats.createInstitution({
+      name: config.name,
+      type: config.type,
+      country: config.country,
+      billingContactEmail: 'finance@example.org',
+    })
+    const quote = await sales.createQuote({
+      institutionId: inst.id,
+      term: '2026-T2',
+      startDate: new Date(Date.now() - 30 * DAY),
+      endDate: new Date(Date.now() + 60 * DAY),
+      seats: config.seatsPurchased,
+      currency: 'USD',
+    })
+    await sales.acceptQuote(quote.id)
+    const invoice = await sales.issueInvoice(quote.id)
+    const { license } = await sales.markPaid(invoice.id, 'BANKTRF-DEMO-001')
+    institutionId = inst.id
+    licenseId = license!.id
+    console.log(`  invoice ${invoice.number} paid -> license ${license!.id}`)
+  } else {
+    const inst = await seats.createInstitution({
+      name: config.name,
+      type: config.type,
+      country: config.country,
+      billingContactEmail: 'programmes@example.org',
+    })
+    const license = await seats.createLicense({
+      institutionId: inst.id,
+      term: '2026-T2',
+      startDate: new Date(Date.now() - 30 * DAY),
+      endDate: new Date(Date.now() + 60 * DAY),
+      seatsPurchased: config.seatsPurchased,
+      pricePerSeatMinor: 1500,
+      currency: 'USD',
+    })
+    institutionId = inst.id
+    licenseId = license.id
+  }
+
+  await admin.addAdmin({
+    institutionId,
+    phone: config.hqPhone,
+    displayName: 'HQ Coordinator',
+    role: 'HQ_ADMIN',
+  })
+  await admin.addAdmin({
+    institutionId,
+    phone: config.coordinatorPhone,
+    displayName: 'Regional Coordinator',
+    role: 'COORDINATOR',
+    regionScope: 'Nairobi',
   })
 
-  const dnaId = newUlid()
-  const existing = await db.classDnaProfile.findFirst({ where: { userId: teacher.id } })
-  const profileId = existing?.id ?? dnaId
-  if (!existing) {
-    await db.classDnaProfile.create({
+  const issued = await seats.generateSeats(licenseId, config.seatsToIssue)
+  console.log(`  ${config.name}: ${issued.length} seats issued — sample PINs:`)
+  for (const s of issued.slice(0, 3)) console.log(`    ${s.pin}`)
+
+  for (let i = 0; i < config.teachersToClaim; i++) {
+    const teacher = await user(
+      `${config.phonePrefix}${String(i).padStart(2, '0')}`,
+      `Demo Teacher ${i + 1}`,
+    )
+    const claimedDaysAgo = 5 + ((i * 3) % 25)
+    const seat = await seats.redeemPin(issued[i]!.pin, teacher.id)
+    await db.seat.update({
+      where: { id: seat.id },
       data: {
-        id: dnaId,
-        userId: teacher.id,
-        className: 'P4 — Mwangaza Primary',
-        learnerCount: 62,
-        summary:
-          'Large multi-ability P4 class, few textbooks, strong oral culture; teacher wants better numeracy engagement.',
-        traits: ['large-class', 'low-resource', 'multilingual', 'oral-first'],
+        claimedAt: new Date(Date.now() - claimedDaysAgo * DAY),
+        label: `Demo Teacher ${i + 1}`,
       },
     })
-    const prompts: [string, string][] = [
-      ['class_size_context', 'I teach 62 learners in P4, two share one desk, morning shift.'],
-      ['learner_strengths', 'They love call-and-response and singing; strong memory for stories.'],
-      ['biggest_challenge', 'Numeracy — place value confuses most of them and I have 4 textbooks.'],
-      ['resources_available', 'Chalkboard, bottle tops for counting, my phone. No projector.'],
-      ['teacher_goal', 'I want every child to attempt maths without fear by end of term.'],
-    ]
-    for (const [promptId, transcript] of prompts) {
-      await db.dnaResponse.create({
-        data: { id: newUlid(), profileId, promptId, transcript, capturedAt: new Date() },
-      })
-    }
-  }
-
-  const today = new Date().toISOString().slice(0, 10)
-  const reflections: [1 | 2 | 3, string][] = [
-    [1, 'The bottle-top place value game worked — even the quiet ones joined.'],
-    [2, 'Ran out of time for the exit question, again.'],
-    [3, 'Tomorrow I will start with the exit question instead of ending with it.'],
-  ]
-  for (const [slot, transcript] of reflections) {
-    await db.reflectionEntry.upsert({
-      where: { userId_date_slot: { userId: teacher.id, date: today, slot } },
-      update: {},
-      create: {
-        id: newUlid(),
-        userId: teacher.id,
-        date: today,
-        slot,
-        mode: 'voice',
-        transcript,
-        durationSec: 55,
-        capturedAt: new Date(),
-      },
+    await seedTeacherActivity(teacher.id, {
+      claimedDaysAgo,
+      asks: 3 + ((i * 5) % 12),
+      reflections: 2 + ((i * 7) % 9),
     })
   }
+  console.log(`  ${config.teachersToClaim} teachers claimed seats and have activity`)
+  return { institutionId, licenseId }
+}
 
-  // one free signed demo pack so Today/Packs render on first boot
+async function main() {
+  console.log('Seeding SOMO demo data (B2B pivot)…')
+
+  await user('+254700000100', 'SOMO Staff', 'somo_admin')
+
+  console.log('• Teach For All — Kenya Pilot (fellowship buyer)')
+  const tfa = await seedInstitution({
+    name: 'Teach For All — Kenya Pilot',
+    type: 'FELLOWSHIP',
+    country: 'KE',
+    hqPhone: '+254700000001',
+    coordinatorPhone: '+254700000002',
+    seatsPurchased: 20,
+    seatsToIssue: 15,
+    teachersToClaim: 10,
+    phonePrefix: '+2547101000',
+    viaSalesPipeline: false,
+  })
+
+  // a fixed, documented demo PIN on the TFA license: TEST-SEAT
+  await db.seat.create({
+    data: {
+      id: newUlid(),
+      licenseId: tfa.licenseId,
+      authPinHash: seats.hashPin('TEST-SEAT'),
+      label: 'Walkthrough seat (PIN: TEST-SEAT)',
+    },
+  })
+  console.log('  fixed demo PIN ready: TEST-SEAT')
+
+  console.log('• Umoja Schools Network (Bridge-style network, via the sales pipeline)')
+  await seedInstitution({
+    name: 'Umoja Schools Network',
+    type: 'SCHOOL_NETWORK',
+    country: 'KE',
+    hqPhone: '+254700000011',
+    coordinatorPhone: '+254700000012',
+    seatsPurchased: 40,
+    seatsToIssue: 25,
+    teachersToClaim: 15,
+    phonePrefix: '+2547102000',
+    viaSalesPipeline: true,
+  })
+
+  // one signed demo pack so Today/Packs render
   if (!(await db.pack.findUnique({ where: { slug: 'numeracy-foundations-term-1' } }))) {
     const keys =
-      process.env.PACK_SIGNING_PRIVATE_KEY && process.env.PACK_SIGNING_PUBLIC_KEY
+      env.PACK_SIGNING_PRIVATE_KEY && env.PACK_SIGNING_PUBLIC_KEY
         ? {
             publicKeyId: 'somo-root',
-            privateKey: process.env.PACK_SIGNING_PRIVATE_KEY,
-            publicKey: process.env.PACK_SIGNING_PUBLIC_KEY,
+            privateKey: env.PACK_SIGNING_PRIVATE_KEY,
+            publicKey: env.PACK_SIGNING_PUBLIC_KEY,
           }
         : { publicKeyId: 'somo-dev-ephemeral', ...generateEd25519Keypair() }
-    const packs = new PackService(
-      db,
-      new FsObjectStore(process.env.PACKS_STORAGE_DIR ?? './storage'),
-      keys,
-    )
+    const packs = new PackService(db, new FsObjectStore(env.PACKS_STORAGE_DIR), keys)
+    const publisher = await user('+254700000199', 'SOMO Content', 'creator')
     await packs.publish({
       slug: 'numeracy-foundations-term-1',
       title: 'Numeracy Foundations — Term 1',
@@ -97,7 +253,7 @@ async function main() {
       gradeLevels: ['P3', 'P4'],
       locale: 'en',
       version: '1.0.0',
-      publisherId: teacher.id,
+      publisherId: publisher.id,
       lessons: [
         { index: 0, title: 'Counting with what you have', minutes: 30 },
         { index: 1, title: 'Place value with bottle tops', minutes: 35 },
@@ -105,48 +261,14 @@ async function main() {
       ],
       priceAmountMinor: 0,
       priceCurrency: 'KES',
-      archive: Buffer.from(
-        JSON.stringify({
-          format: 'somopack/1',
-          note: 'demo archive — real packs ship lesson JSON + audio',
-        }),
-      ),
+      archive: Buffer.from(JSON.stringify({ format: 'somopack/1', note: 'demo archive' })),
     })
-    console.log('seeded demo pack numeracy-foundations-term-1')
+    console.log('• demo pack published')
   }
 
-  // SOMO Plus price book (annual = 10× monthly, i.e. 2 months free) + launch coupon
-  const prices: [string, string, number][] = [
-    // [currency, interval, amountMinor]
-    ['KES', 'month', 26000], // KES 260
-    ['KES', 'year', 260000],
-    ['NGN', 'month', 300000], // NGN 3,000
-    ['NGN', 'year', 3000000],
-    ['TZS', 'month', 520000], // TZS 5,200
-    ['TZS', 'year', 5200000],
-    ['USD', 'month', 200], // $2
-    ['USD', 'year', 2000],
-  ]
-  for (const [cur, interval, amountMinor] of prices) {
-    await db.price.upsert({
-      where: { planId_currency_interval: { planId: 'plus', currency: cur, interval } },
-      update: { amountMinor },
-      create: { id: newUlid(), planId: 'plus', currency: cur, interval, amountMinor },
-    })
-  }
-  await db.coupon.upsert({
-    where: { code: 'LAUNCH25' },
-    update: {},
-    create: {
-      code: 'LAUNCH25',
-      percentOff: 25,
-      maxRedemptions: 500,
-      redeemBy: new Date(Date.now() + 90 * 86_400_000),
-    },
-  })
-  console.log('seeded plus price book (KES/NGN/TZS/USD) + LAUNCH25')
-
-  console.log(`seeded teacher ${teacher.phone} (${teacher.id})`)
+  console.log('\nDone. Console logins (OTP prints to the API log in dev):')
+  console.log('  TFA HQ admin  +254700000001   Umoja HQ  +254700000011')
+  console.log('  SOMO staff    +254700000100   Demo PIN  TEST-SEAT')
 }
 
 await main().finally(() => db.$disconnect())
