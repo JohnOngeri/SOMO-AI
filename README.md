@@ -1,8 +1,8 @@
 # SOMO
 
-**The offline-first AI teaching coach — free for teachers, licensed by the institutions that support them.**
+**The offline-first AI teaching coach free for teachers, licensed by the institutions that support them.**
 
-SOMO works across the whole connectivity ladder — Wi-Fi, 2G, SMS/USSD, and fully offline — down to a button phone. Teachers capture their classroom's "Class DNA", reflect in 3-minute mirrors, and ask an AI coach questions by voice, typing, or SMS. NGOs, school networks, and ministries buy **seats per term**; every seat carries a one-time authorization PIN and a hard monthly usage quota, so access is gated and spend is predictable to the call.
+SOMO works across the whole connectivity ladder — Wi-Fi, 2G, SMS/USSD, and fully offline down to a button phone. Teachers capture their classroom's "Class DNA", reflect in 3-minute mirrors, and ask an AI coach questions by voice, typing, or SMS. NGOs, school networks, and ministries buy **seats per term**; every seat carries a one-time authorization PIN and a hard monthly usage quota, so access is gated and spend is predictable to the call.
 
 ## Documentation
 
@@ -48,4 +48,4 @@ packages/         types (zod contract) · packsign (ed25519) · payments · ui t
 infra/            docker-compose, CI
 ```
 
-The invariant everything hangs on: **no seat, no paid call** — proven by `backend/api/test/gating.test.ts`.
+The invariant everything hangs on: **no seat, no paid call** proven by `backend/api/test/gating.test.ts`.
