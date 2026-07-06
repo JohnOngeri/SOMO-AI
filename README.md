@@ -23,7 +23,7 @@ pnpm --filter @somo/api seed                          # demo institutions + PINs
 pnpm dev                                              # api :4000 + admin console :5180
 ```
 
-No Docker? Tests need nothing (they boot an embedded Postgres automatically); for `pnpm dev`, point `DATABASE_URL` at any Postgres.
+No Docker? `pnpm dev:all` boots an embedded Postgres, seeds on first run, and starts everything in one command. (Tests always self-provision their own database.)
 
 **Demo walkthrough** (seed prints these): sign into the console at `localhost:5180` as `+254700000001` (OTP code appears in the API log), explore Teach For All's seats/costs/ROI; redeem the teacher PIN `TEST-SEAT` via the API or USSD webhook. Without an `ANTHROPIC_API_KEY` the coach answers through a deterministic mock — every flow works offline-from-Anthropic.
 

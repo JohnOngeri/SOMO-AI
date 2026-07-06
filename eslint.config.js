@@ -19,6 +19,13 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   prettier,
   {
+    // plain-JS node scripts (dev tooling)
+    files: ['**/*.mjs'],
+    languageOptions: {
+      globals: { console: 'readonly', process: 'readonly', Buffer: 'readonly' },
+    },
+  },
+  {
     rules: {
       '@typescript-eslint/no-unused-vars': [
         'error',

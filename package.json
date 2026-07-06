@@ -16,7 +16,8 @@
     "format": "prettier --write .",
     "typecheck": "pnpm -r --if-present run typecheck",
     "test": "pnpm -r --if-present run test",
-    "e2e": "pnpm -r --if-present run e2e"
+    "e2e": "pnpm -r --if-present run e2e",
+    "dev:all": "node backend/api/scripts/dev-all.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

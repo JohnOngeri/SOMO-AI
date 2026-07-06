@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from 'node:fs'
 import { z } from 'zod'
 
 const envSchema = z.object({
@@ -37,6 +38,19 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>
 
+/** Minimal .env loader (dev only, never under tests): fills UNSET keys only. */
+function loadDotEnv() {
+  for (const path of ['.env', '../../.env']) {
+    if (!existsSync(path)) continue
+    for (const line of readFileSync(path, 'utf8').split('\n')) {
+      const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/)
+      if (m && process.env[m[1]!] === undefined) process.env[m[1]!] = m[2]!
+    }
+    return
+  }
+}
+
 export function loadEnv(overrides: Partial<Record<keyof Env, string>> = {}): Env {
+  if (process.env.NODE_ENV !== 'test') loadDotEnv()
   return envSchema.parse({ ...process.env, ...overrides })
 }
