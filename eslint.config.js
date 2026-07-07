@@ -26,6 +26,23 @@ export default tseslint.config(
     },
   },
   {
+    // CommonJS tool configs (Metro/Babel require this format, not ESM)
+    files: ['**/babel.config.js', '**/metro.config.js'],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: {
+        module: 'writable',
+        require: 'readonly',
+        __dirname: 'readonly',
+        console: 'readonly',
+        process: 'readonly',
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+  {
     rules: {
       '@typescript-eslint/no-unused-vars': [
         'error',

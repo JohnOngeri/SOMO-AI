@@ -27,6 +27,8 @@ No Docker? `pnpm dev:all` boots an embedded Postgres, seeds on first run, and st
 
 **Demo walkthrough** (seed prints these): sign into the console at `localhost:5180` as `+254700000001` (OTP code appears in the API log), explore Teach For All's seats/costs/ROI; redeem the teacher PIN `TEST-SEAT` via the API or USSD webhook. Without an `ANTHROPIC_API_KEY` the coach answers through a deterministic mock — every flow works offline-from-Anthropic.
 
+**Teacher app**: `pnpm --filter @somo/mobile dev` opens Expo — scan the QR with Expo Go, or press `i`/`a` for a simulator. Sign in with any phone (OTP prints in the API log), then redeem `TEST-SEAT` to unlock Ask Coach, the 3-Minute Mirror, and Class DNA. Android emulators reach the API at `10.0.2.2` automatically; a physical device needs `EXPO_PUBLIC_API_URL` pointed at your machine's LAN IP.
+
 ## Root scripts
 
 | Script           | What it does                                           |
@@ -41,6 +43,8 @@ No Docker? `pnpm dev:all` boots an embedded Postgres, seeds on first run, and st
 
 ```
 frontend/admin/   institution console: seats, printable PIN sheets, cost + ROI dashboards
+frontend/mobile/  teacher app (Expo): PIN redemption, Ask Coach, 3-Minute Mirror, Class
+                  DNA — offline seat-token verify + local outbox for no-connectivity use
 backend/api/      modular monolith: auth+PIN, seats/licenses, fail-closed cost gates,
                   AI coach (cached→haiku→sonnet), PIN-first USSD/SMS gateway, signed
                   packs, B2B sales pipeline, anonymized analytics mart

@@ -72,9 +72,11 @@ Institution 1─* License 1─* Seat *─1 User(teacher)
 ```
 somo/
 ├─ frontend/
-│  └─ admin/         # institution console (the buyer's product) — Vite+React,
-│                    # token-CSS design system, PIN sheets, cost/ROI dashboards
-│  # mobile/, web/ (teacher surfaces) and ussd-sim/ arrive next
+│  ├─ admin/         # institution console (the buyer's product) — Vite+React,
+│  │                 # token-CSS design system, PIN sheets, cost/ROI dashboards
+│  └─ mobile/        # teacher app (Expo/expo-router): PIN redemption, Ask Coach,
+│                    # 3-Minute Mirror, Class DNA, offline seat-token verify + outbox
+│  # web PWA and ussd-sim arrive next
 ├─ backend/
 │  └─ api/           # modular monolith (ADR-0005): auth, seats, entitlements,
 │                    # metering, coach, gateway, packs, admin, roi, sales,

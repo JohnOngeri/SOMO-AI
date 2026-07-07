@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "SOMO",
+    "slug": "somo-teacher",
+    "scheme": "somo",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#f3ede1"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "co.somo.teacher"
+    },
+    "android": {
+      "package": "co.somo.teacher",
+      "adaptiveIcon": {
+        "backgroundColor": "#f3ede1"
+      }
+    },
+    "plugins": ["expo-router", "expo-secure-store", "expo-sqlite"],
+    "extra": {
+      "apiUrl": "http://localhost:4000/trpc"
+    }
+  }
+}
